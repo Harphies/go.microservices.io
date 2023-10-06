@@ -12,11 +12,11 @@ I have deployed/release over 500+ microservices on Multi-tenant Kubernetes Clust
 
 Focuses on :
 
-* Structured logging emitted to standard out on the process for a logging agent such as [FluentBit](https://docs.fluentbit.io/manual/pipeline/inputs), [Splunk Forwarder](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/Install) to pick up in the `/var/log*` directory and persist to a logging backend such as Splunk, AWS CloudWatch, ElasticSearch etc.
+* Structured logs emitted to standard output (stdout) on the process for a logging agent such as [FluentBit](https://docs.fluentbit.io/manual/pipeline/inputs), [Splunk Forwarder](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/Install) to pick up in the `/var/log*` directory and persist to a logging backend such as Splunk, AWS CloudWatch, ElasticSearch etc.
 
 * Microservices Prometheus Metrics Instrumentation with [prometheus go client](https://github.com/prometheus/client_golang)
 
-* Distributed trace span collection with [Opentelemetry SDK](https://github.com/open-telemetry/opentelemetry-go)
+* Distributed trace span collection with [Opentelemetry SDK](https://github.com/open-telemetry/opentelemetry-go) forwarded to [Jaeger Collector](https://www.jaegertracing.io/docs/1.49/getting-started/#instrumentation) and eventually persisted to trace backend such as [ElasticSearch]()
 
 ## Storage 
 
