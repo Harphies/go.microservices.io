@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"github.com/didip/tollbooth/v7"
 	"github.com/didip/tollbooth/v7/limiter"
 	"net/http"
 	"sync"
