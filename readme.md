@@ -1,6 +1,10 @@
-# Microservices and Distributed System Applications
+# Building Microservices and Distributed System Applications with Go
 
-This project focus on making building a microservices and distruted systems application a breeze with go
+This package is an abstraction to make building microservices and distributed systems application a breeze using Go. 
+
+Most of the code will be coming from infrastructure perspective. What needs to be considered at application layer and what needs to be delegated to Infrastructure layer.
+
+I have deployed/release over 500+ microservices on Multi-tenant Kubernetes Clusters. I believe I have some experience to make a judgement on what I see that's missing and how things can be improved going forward.
 
 ## Pillars
 
@@ -8,11 +12,11 @@ This project focus on making building a microservices and distruted systems appl
 
 Focuses on :
 
-* Structured logging emitted to standard out on the progress for a logging agent such as [FluentBit](https://docs.fluentbit.io/manual/pipeline/inputs), [Splunk Forward](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/Install) to pick up in the `/var/log*` directory and persist to a logging backend such as Splunk, AWS CloudWatch, ElasticSearch etc.
+* Structured logging emitted to standard out on the progress for a logging agent such as [FluentBit](https://docs.fluentbit.io/manual/pipeline/inputs), [Splunk Forwarder](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/Install) to pick up in the `/var/log*` directory and persist to a logging backend such as Splunk, AWS CloudWatch, ElasticSearch etc.
 
 * Microservices Prometheus Metrics Instrumentation with [prometheus go client](https://github.com/prometheus/client_golang)
 
-* Distributed trace span collection with [opentelemetry](https://github.com/open-telemetry/opentelemetry-go)
+* Distributed trace span collection with [Opentelemetry SDK](https://github.com/open-telemetry/opentelemetry-go)
 
 ## Storage 
 

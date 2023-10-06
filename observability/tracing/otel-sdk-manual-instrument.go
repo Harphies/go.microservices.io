@@ -28,7 +28,7 @@ type DistributedTracing struct {
 	serviceName string
 }
 
-// NewDistributedTracingWithOpenTelemetry - Source: https://medium.com/@guilospanck/telemetry-with-opentelemetry-prometheus-and-jaeger-46a2d9dec86b
+// NewDistributedTracingWithOpenTelemetry ...
 func NewDistributedTracingWithOpenTelemetry(logger *zap.Logger, environment, serviceName string) *DistributedTracing {
 	return &DistributedTracing{
 		logger:      logger,
@@ -77,9 +77,7 @@ func (t *DistributedTracing) newResource(ctx context.Context) *resource.Resource
 }
 
 // InitProviderWithOpenTelemetryCollectorGrpcEndpoint - This enables the service to establish a GRPC connection with
-// OpenTelemetry Collector using the standard environment variable `OTEL_EXPORTER_OTLP_ENDPOINT` on the process to look kup the OpenTelemetry Collector GRPC endpoint.
-// Refs - https://github.com/open-telemetry/opentelemetry-go/blob/main/example/otel-collector/main.go
-// Refs - https://github.com/open-telemetry/opentelemetry-demo/blob/main/src/accountingservice/main.go
+// OpenTelemetry Collector using the standard environment variable `OTEL_EXPORTER_OTLP_ENDPOINT` on the process to look up the OpenTelemetry Collector GRPC endpoint.
 func (t *DistributedTracing) InitProviderWithOpenTelemetryCollectorGrpcEndpoint() (*trace.TracerProvider, error) {
 	ctx := context.Background()
 
