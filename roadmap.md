@@ -2,7 +2,7 @@
 
 ## Proposed
 
-- Publish the module to [go package registry](https://pkg.go.dev/)
+- Publish the module to [go package registry](https://go.dev/doc/modules/publishing)
 
 ## In-Progress
 
