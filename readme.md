@@ -28,6 +28,7 @@ Focuses on :
 go mod init github.com/harphies/go.microservices.io
 GOPROXY=proxy.golang.org go list -m github.com/harphies/go.microservices.io@v0.0.1
 
+# Usage
 go install  github.com/harphies/go.microservices.io  
 go list -m -versions github.com/harphies/go.microservices.io
 ```
