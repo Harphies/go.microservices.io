@@ -10,11 +10,13 @@ git push origin <tag>
 
 # Push to Go proxy
 GOPROXY=proxy.golang.org go list -m github.com/harphies/go.microservices.io@<tag>
+
+# Check if the version is available
 ```
 
 4 weeks release cycle/cadense. Every 2 weeks, new tag is cut and released.
 
-## v0.0.1 05/10/2023
+## v0.1.0 05/10/2023
 
 FEATURES:
 
