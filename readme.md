@@ -8,7 +8,7 @@ This project focus on making building a microservices and distruted systems appl
 
 Focuses on :
 
-* strutured logging emitted to standard out on the progress for a logging agent such as [FluentBit](https://docs.fluentbit.io/manual/pipeline/inputs), [Splunk Forward](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/Install) to pick up in the `/var/log*` directory and persist to a logging backend such as Splunk, AWS CloudWatch, ElasticSearch etc.
+* Structured logging emitted to standard out on the progress for a logging agent such as [FluentBit](https://docs.fluentbit.io/manual/pipeline/inputs), [Splunk Forward](https://docs.splunk.com/Documentation/AddOns/released/Kubernetes/Install) to pick up in the `/var/log*` directory and persist to a logging backend such as Splunk, AWS CloudWatch, ElasticSearch etc.
 
 * Microservices Prometheus Metrics Instrumentation with [prometheus go client](https://github.com/prometheus/client_golang)
 
