@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	otelName = "recommendationservice/internal/storage/datastore/relational/postgresql"
+	otelName = "storage/datastore/relational/postgresql"
 )
 
 type PostgresSQLDataStore struct {
