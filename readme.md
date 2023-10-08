@@ -16,7 +16,7 @@ Focuses on :
 
 * Microservices Prometheus Metrics Instrumentation with [prometheus go client](https://github.com/prometheus/client_golang)
 
-* Distributed trace span collection with [Opentelemetry SDK](https://github.com/open-telemetry/opentelemetry-go) forwarded to [Jaeger Collector](https://www.jaegertracing.io/docs/1.49/getting-started/#instrumentation) and eventually persisted to trace backend such as [ElasticSearch]()
+* Distributed trace span collection with [Opentelemetry SDK](https://github.com/open-telemetry/opentelemetry-go) forwarded to [Jaeger Collector](https://www.jaegertracing.io/docs/1.49/getting-started/#instrumentation) and eventually persisted to trace backend such as [ElasticSearch](https://www.jaegertracing.io/docs/1.49/faq/#what-is-the-recommended-storage-backend)
 
 ## Storage 
 
