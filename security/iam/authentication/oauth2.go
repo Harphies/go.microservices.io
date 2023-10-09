@@ -63,6 +63,7 @@ func (oauth *OauthServiceProvider) GenerateCode(ctx context.Context, endpoint st
 	queryParams := QueryParams{
 		"client_id":     oauth.clientID,
 		"client_secret": oauth.clientSecret,
+		"redirect_uri":  oauth.redirectUri,
 	}
 	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodGet, endpoint, "", nil, queryParams, nil)
 	return string(response)

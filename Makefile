@@ -1,4 +1,4 @@
-TAG := v0.1.5
+TAG := v0.1.6
 
 .PHONY: push/changes
 push/changes:
