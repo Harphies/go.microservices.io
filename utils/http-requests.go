@@ -15,6 +15,10 @@ import (
 	"time"
 )
 
+const (
+	cookieName = "token"
+)
+
 // reuse your client for performance reasons
 // Red more about selection the right timeout - https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
 func httpClient() *http.Client {
@@ -161,4 +165,34 @@ func ReadQueryStringKeyOfStringValue(qs url.Values, key, defaultValue string) st
 	}
 
 	return value
+}
+
+// SetCookie Set Authorization Token in http cookie after user signed in for stateless cookies.
+func SetCookie(w http.ResponseWriter, token string, expirationTime time.Duration) {
+	// check for zero expiration time
+	if expirationTime > 0 {
+		http.SetCookie(w, &http.Cookie{
+			Name:    cookieName,
+			Value:   token,
+			Expires: time.Now().Add(expirationTime),
+		})
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name:    cookieName,
+		Value:   token,
+		Expires: time.Now().Add(5 * time.Minute),
+	})
+}
+
+// GetCookie retrieve token stored in cookie for a user with the name used to store the cookie
+// Use the decode method on the TokenGenerator to Decode and return the claims on that token: https://github.com/Harphies/microservices/blob/main/golang-projects/microservices-toolkits/pkg/security/authorization/jwt-token.go#L66
+func GetCookie(r *http.Request) (string, error) {
+	cookie, err := r.Cookie(cookieName)
+	if err != nil {
+		if errors.Is(err, http.ErrNoCookie) {
+			return "", errors.New("no cookie set for this user")
+		}
+	}
+	tokenString := cookie.Value
+	return tokenString, nil
 }

@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.40.0
 	github.com/confluentinc/confluent-kafka-go/v2 v2.2.0
 	github.com/didip/tollbooth/v7 v7.0.1
-	github.com/google/uuid v1.3.0
+	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/jackc/pgx/v5 v5.4.3
 	github.com/oklog/ulid v1.3.1
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
