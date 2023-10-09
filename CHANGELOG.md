@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## v0.1.5 -  09/10/2023
+
+FEATURES:
+
+* Added Authentication supports via OAuth2.0 to `Security` pillar
+* HTTP utils includes set and get cookies features.
+
+
 ## v0.1.0 05/10/2023
 
 FEATURES:
