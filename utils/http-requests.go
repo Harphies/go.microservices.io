@@ -94,7 +94,11 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 		logger.Error("Error occurred while making the http request", zap.Error(err))
 	}
 
-	defer res.Body.Close()
+	defer func() {
+		if err = res.Body.Close(); err != nil {
+			logger.Error(fmt.Sprintf("failed to close processed request after transaction complete: %v", err.Error()))
+		}
+	}()
 
 	responseBody, err := ioutil.ReadAll(res.Body)
 	if err != nil {

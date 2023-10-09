@@ -13,6 +13,7 @@ release/tag/gitub: push/changes
 	git tag ${TAG}
 	git push origin ${TAG}
 
+.PHONY: release/module/go
 release/module/go:
 	echo "Release New tag to go module registry"
 	GOPROXY=proxy.golang.org go list -m github.com/harphies/go.microservices.io@${TAG}
