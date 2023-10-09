@@ -15,7 +15,6 @@ type (
 type OauthServiceProvider struct {
 	clientID     string
 	clientSecret string
-	redirectUri  string
 	logger       *zap.Logger
 }
 type OauthAccessResponse struct {
@@ -32,11 +31,10 @@ type Oauth2ServiceProvider interface {
 }
 
 // NewOauthServiceProvider instantiate a new Oauth Service Provider.
-func NewOauthServiceProvider(logger *zap.Logger, clientId, clientSecret, redirectUri string) *OauthServiceProvider {
+func NewOauthServiceProvider(logger *zap.Logger, clientId, clientSecret string) *OauthServiceProvider {
 	return &OauthServiceProvider{
 		clientID:     clientId,
 		clientSecret: clientSecret,
-		redirectUri:  redirectUri,
 		logger:       logger,
 	}
 }
