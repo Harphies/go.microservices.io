@@ -41,9 +41,21 @@ func NewOauthServiceProvider(logger *zap.Logger, clientId, clientSecret, redirec
 	}
 }
 
-// GenerateToken generates an access token with code grant flow.
+// GenerateCode generates a code to be used to generate access token
+// Takes client_id & redirect_uri as query parameters in the request
+func (oauth *OauthServiceProvider) GenerateCode(ctx context.Context, redirectUri, endpoint string) string {
+	queryParams := QueryParams{
+		"client_id":     oauth.clientID,
+		"client_secret": oauth.clientSecret,
+		"redirect_uri":  redirectUri,
+	}
+	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodGet, endpoint, "", nil, queryParams, nil)
+	return string(response)
+}
+
+// GenerateTokenWithCode generates an access token with code grant flow.
 // Takes code, client_id, client_secret as query Params.
-func (oauth *OauthServiceProvider) GenerateToken(ctx context.Context, endpoint, code string) string {
+func (oauth *OauthServiceProvider) GenerateTokenWithCode(ctx context.Context, endpoint, code string) string {
 	queryParams := QueryParams{
 		"client_id":     oauth.clientID,
 		"client_secret": oauth.clientSecret,
@@ -57,14 +69,17 @@ func (oauth *OauthServiceProvider) GenerateToken(ctx context.Context, endpoint, 
 	return resp.AccessToken
 }
 
-// GenerateCode generates a code to be used to generate access token
-// Takes client_id & redirect_uri as query parameters in the request
-func (oauth *OauthServiceProvider) GenerateCode(ctx context.Context, endpoint string) string {
+// GenerateToken generates an access token with client credentials grant flow.
+// Takes client_id, client_secret as query Params.
+func (oauth *OauthServiceProvider) GenerateToken(ctx context.Context, endpoint string) string {
 	queryParams := QueryParams{
 		"client_id":     oauth.clientID,
 		"client_secret": oauth.clientSecret,
-		"redirect_uri":  oauth.redirectUri,
 	}
-	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodGet, endpoint, "", nil, queryParams, nil)
-	return string(response)
+	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, queryParams, nil)
+	// Get the actual access token
+	var resp OauthAccessResponse
+	_ = json.Unmarshal(response, &resp)
+
+	return resp.AccessToken
 }
