@@ -39,26 +39,16 @@ func NewOauthServiceProvider(logger *zap.Logger, clientId, clientSecret string) 
 	}
 }
 
-// GenerateCode generates a code to be used to generate access token
-// Takes client_id & redirect_uri as query parameters in the request
-func (oauth *OauthServiceProvider) GenerateCode(ctx context.Context, redirectUri, endpoint string) string {
-	queryParams := QueryParams{
-		"client_id":     oauth.clientID,
-		"client_secret": oauth.clientSecret,
-		"redirect_uri":  redirectUri,
-	}
-	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodGet, endpoint, "", nil, queryParams, nil)
-	return string(response)
-}
-
 // GenerateTokenWithCode generates an access token with code grant flow.
 // Takes code, client_id, client_secret as query Params.
 func (oauth *OauthServiceProvider) GenerateTokenWithCode(ctx context.Context, endpoint, code string) string {
+
 	queryParams := QueryParams{
 		"client_id":     oauth.clientID,
 		"client_secret": oauth.clientSecret,
 		"code":          code,
 	}
+
 	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, queryParams, nil)
 	// Get the actual access token
 	var resp OauthAccessResponse
