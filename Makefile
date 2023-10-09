@@ -1,10 +1,10 @@
-TAG := v0.1.2
+TAG := v0.1.5
 
 .PHONY: push/changes
 push/changes:
 	echo 'Push changes'
 	git add .
-	git commit -m 'new release for ${TAG}'
+	git commit -m 'new release for ${TAG}' --allow-empty
 	git push
 
 .PHONY: release/tag/gitub
