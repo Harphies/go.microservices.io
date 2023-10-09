@@ -10,7 +10,7 @@ push/changes:
 .PHONY: release/tag/gitub
 release/tag/gitub: push/changes
 	echo 'Release New Module Tag to github'
-	git tag $TAG}
+	git tag ${TAG}
 	git push origin ${TAG}
 
 release/module/go:
