@@ -8,10 +8,6 @@ import (
 	"net/http"
 )
 
-type (
-	QueryParams map[string]string
-)
-
 type OauthServiceProvider struct {
 	clientID     string
 	clientSecret string
@@ -41,15 +37,9 @@ func NewOauthServiceProvider(logger *zap.Logger, clientId, clientSecret string) 
 
 // GenerateTokenWithCode generates an access token with code grant flow.
 // Takes code, client_id, client_secret as query Params.
-func (oauth *OauthServiceProvider) GenerateTokenWithCode(ctx context.Context, endpoint, code string) string {
+func (oauth *OauthServiceProvider) GenerateTokenWithCode(ctx context.Context, endpoint string, qs, headers map[string]string) string {
 
-	queryParams := QueryParams{
-		"client_id":     oauth.clientID,
-		"client_secret": oauth.clientSecret,
-		"code":          code,
-	}
-
-	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, queryParams, nil)
+	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, qs, nil)
 	// Get the actual access token
 	var resp OauthAccessResponse
 	_ = json.Unmarshal(response, &resp)
@@ -59,12 +49,9 @@ func (oauth *OauthServiceProvider) GenerateTokenWithCode(ctx context.Context, en
 
 // GenerateToken generates an access token with client credentials grant flow.
 // Takes client_id, client_secret as query Params.
-func (oauth *OauthServiceProvider) GenerateToken(ctx context.Context, endpoint string) string {
-	queryParams := QueryParams{
-		"client_id":     oauth.clientID,
-		"client_secret": oauth.clientSecret,
-	}
-	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, queryParams, nil)
+func (oauth *OauthServiceProvider) GenerateToken(ctx context.Context, endpoint string, qs, headers map[string]string) string {
+
+	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, qs, nil)
 	// Get the actual access token
 	var resp OauthAccessResponse
 	_ = json.Unmarshal(response, &resp)
