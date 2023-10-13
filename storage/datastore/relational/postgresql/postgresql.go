@@ -28,6 +28,7 @@ func NewPostgresSQLDatastore(logger *zap.Logger, dbDsn, serviceName string) *Pos
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {
 		logger.Error("pgxpool.Connect failed")
+		return nil
 	}
 	//defer pool.Close()
 	logger.Info("AWS RDS PostgresSQL Database connection established")
@@ -35,10 +36,9 @@ func NewPostgresSQLDatastore(logger *zap.Logger, dbDsn, serviceName string) *Pos
 	// Check if the DB is connected
 	if err = pool.Ping(ctx); err != nil {
 		logger.Error("db connection has dropped")
+		return nil
 	}
-	if err != nil {
 
-	}
 	return &PostgresSQLDataStore{
 		ctx:    ctx,
 		pool:   pool,

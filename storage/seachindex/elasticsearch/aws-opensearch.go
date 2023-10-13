@@ -29,6 +29,7 @@ func NewSearchIndex(logger *zap.Logger, endpoint string) *SearchIndex {
 	info, err := client.Info()
 	if err != nil {
 		logger.Error("failed to establish connection with AWS OpenSearch Cluster", zap.Error(err))
+		return nil
 	}
 	var r map[string]interface{}
 	_ = json.NewDecoder(info.Body).Decode(&r)
