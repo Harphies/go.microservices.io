@@ -39,7 +39,7 @@ func NewOauthServiceProvider(logger *zap.Logger, clientId, clientSecret string) 
 // Takes code, client_id, client_secret as query Params.
 func (oauth *OauthServiceProvider) GenerateTokenWithCode(ctx context.Context, endpoint string, qs, headers map[string]string) string {
 
-	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, qs, nil)
+	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, qs, headers)
 	// Get the actual access token
 	var resp OauthAccessResponse
 	_ = json.Unmarshal(response, &resp)
