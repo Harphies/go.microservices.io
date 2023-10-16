@@ -62,7 +62,10 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 	//req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
 
 	// Bearer Auth - https://swagger.io/docs/specification/authentication/bearer-authentication/
-	req.Header.Add("Authorization", "Bearer "+token)
+	if token != "" {
+		req.Header.Add("Authorization", "Bearer "+token)
+	}
+
 	req.Header.Set("accept", "application/json")
 
 	// API Key based Authentication - https://swagger.io/docs/specification/authentication/api-keys/
@@ -199,4 +202,19 @@ func GetCookie(r *http.Request) (string, error) {
 	}
 	tokenString := cookie.Value
 	return tokenString, nil
+}
+
+func SetValueInRequestContext(r *http.Request, key string, value interface{}) *http.Request {
+	ctx := context.WithValue(r.Context(), key, value)
+	return r.WithContext(ctx)
+}
+
+// GetValueFromRequestContext retrieve the user from the request context
+func GetValueFromRequestContext(r *http.Request, key string) *interface{} {
+	value, ok := r.Context().Value(key).(interface{})
+	if !ok {
+		panic(fmt.Sprintf("missing %s value in the request context", key))
+	}
+
+	return &value
 }

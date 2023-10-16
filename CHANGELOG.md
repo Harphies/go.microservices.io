@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v0.1.10 -  16/10/2023
+
+FEATURES:
+
+* Updated HTTP utils Authorization Token
+
 ## v0.1.9 -  10/10/2023
 
 FEATURES:
