@@ -62,9 +62,9 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 	//req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
 
 	// Bearer Auth - https://swagger.io/docs/specification/authentication/bearer-authentication/
-	//if token != "" {
-	//	req.Header.Add("Authorization", "Bearer "+token)
-	//}
+	if token != "" {
+		req.Header.Add("Authorization", "Bearer "+token)
+	}
 
 	req.Header.Set("accept", "application/json")
 
