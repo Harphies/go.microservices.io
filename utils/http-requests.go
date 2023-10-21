@@ -73,9 +73,6 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 	//req.Header.Set("X-API-Key", os.Getenv("API-KEY"))
 	//req.Header.Set("x-api-key", "api key value")
 
-	// api key in request query string
-	//req.URL.Query().Add("api-key", os.Getenv("API-KEY"))
-
 	// Additional Headers
 	if headers != nil {
 		for key, value := range headers {
