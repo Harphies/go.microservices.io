@@ -52,6 +52,7 @@ func NewCacheStore(logger *zap.Logger, host, username, password string) *CacheSt
 
 	if err != nil {
 		logger.Error("failed to establish connection to redis cluster", zap.Error(err))
+		return nil
 	}
 
 	logger.Info(fmt.Sprintf("Redis Client sucessfully established connection with the AWS Elasticache Redis server with %v response returned from the server.", c))
