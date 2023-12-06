@@ -45,7 +45,7 @@ func NewSearchIndex(logger *zap.Logger, endpoint string) *SearchIndex {
 // IndexRecord - Create an Index does not exist and index the incoming document
 func (s *SearchIndex) IndexRecord(indexName, recordId string, item interface{}) {
 	// Check if the Index exists before indexing the record
-	if indexResp := s.getIndex(indexName); indexResp == nil {
+	if indexResp := s.checkIndex(indexName); indexResp == nil {
 		s.logger.Info(fmt.Sprintf("Index with name %s does not exist in the OpenSearch Cluster. Creating it......", indexName))
 		s.createIndex(indexName)
 	}
@@ -122,8 +122,8 @@ func (s *SearchIndex) createIndex(indexName string) {
 	s.logger.Info(fmt.Sprintf("Index created successfully: %v", createIndexResponse))
 }
 
-// getIndex - Check if an Index exists
-func (s *SearchIndex) getIndex(indexName string) interface{} {
+// checkIndex - Check if an Index exists
+func (s *SearchIndex) checkIndex(indexName string) interface{} {
 	res, _ := s.client.Indices.Get([]string{indexName})
 	var r map[string]interface{}
 	_ = json.NewDecoder(res.Body).Decode(&r)

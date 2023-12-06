@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## v0.1.15 -  6/12/2023
+
+FEATURES:
+
+* Refactored ElasticSearch Connection functions
+* Added redis client connection to redis cluster early failure
+
 ## v0.1.10 -  16/10/2023
 
 FEATURES:

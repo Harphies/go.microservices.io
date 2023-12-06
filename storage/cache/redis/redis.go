@@ -63,7 +63,7 @@ func NewCacheStore(logger *zap.Logger, host, username, password string) *CacheSt
 	}
 }
 
-func (c *CacheStore) Created() {
+func (c *CacheStore) Created(recordId string, record interface{}) {
 	// When an item is created, persist it into the cache
 }
 
