@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v0.1.16 -  08/12/2023
+
+FEATURES:
+
+* Refactored MSK event types and event payloads naming conventions and expected arguments
+
 ## v0.1.15 -  6/12/2023
 
 FEATURES:

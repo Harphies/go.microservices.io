@@ -18,13 +18,18 @@ type MSKEventBroker struct {
 	topicName   string
 }
 
+type EventType string
+
 const (
-	otelName = "recommendationservice/internal/storage/messaging/kafka"
+	otelName               = "recommendationservice/internal/storage/messaging/kafka"
+	CreatedEvent EventType = "Created"
+	DeletedEvent EventType = "Deleted"
+	UpdatedEvent EventType = "Updated"
 )
 
 type event struct {
-	Type  string
-	Value interface{}
+	Type    EventType
+	Payload interface{}
 }
 
 // NewKafkaStream instantiates a Stream
@@ -51,30 +56,30 @@ func NewKafkaStream(logger *zap.Logger, host, saslScramUsername, saslScramPasswo
 }
 
 // Created publishes a message indicating a record was created.
-func (k *MSKEventBroker) Created(record interface{}) error {
-	msgType := k.serviceName + ".event.created"
-	return k.publish(msgType, record)
+func (k *MSKEventBroker) Created(eventPayload interface{}) error {
+	//msgType := k.serviceName + ".event.created"
+	return k.publish(CreatedEvent, eventPayload)
 }
 
 // Deleted publishes a message indicating a task was deleted.
 func (k *MSKEventBroker) Deleted(id string) error {
-	msgType := k.serviceName + ".event.deleted"
-	return k.publish(msgType, id)
+	//msgType := k.serviceName + ".event.deleted"
+	return k.publish(DeletedEvent, id)
 }
 
 // Updated publishes a message indicating a task was updated.
-func (k *MSKEventBroker) Updated(record interface{}) error {
-	mstType := k.serviceName + ".event.updated"
-	return k.publish(mstType, record)
+func (k *MSKEventBroker) Updated(eventPayload interface{}) error {
+	//mstType := k.serviceName + ".event.updated"
+	return k.publish(UpdatedEvent, eventPayload)
 }
 
-func (k *MSKEventBroker) publish(msgType string, record interface{}) error {
+func (k *MSKEventBroker) publish(eventType EventType, eventPayload interface{}) error {
 
 	var b bytes.Buffer
 
 	evt := event{
-		Type:  msgType,
-		Value: record,
+		Type:    eventType,
+		Payload: eventPayload,
 	}
 
 	if err := json.NewEncoder(&b).Encode(evt); err != nil {

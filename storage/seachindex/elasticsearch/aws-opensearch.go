@@ -83,7 +83,7 @@ func (s *SearchIndex) DeleteIndex(indexName string) {
 
 func (s *SearchIndex) Search(indexName string, queryParams map[string]string) {
 	basicSearchParam, _ := json.Marshal(queryParams)
-	parsedSearchParam := OpenSearchQueryStringFormat(string(basicSearchParam))
+	parsedSearchParam := openSearchQueryStringFormat(string(basicSearchParam))
 	s.logger.Info(fmt.Sprintf("trimmed stringify input:: %v", parsedSearchParam))
 	s.basicSearch(indexName, parsedSearchParam)
 	/*
@@ -154,7 +154,7 @@ func (s *SearchIndex) complexQuery(indexName string, query interface{}) {
 
 // Formatted String for OpenSearch Query String Format
 
-func OpenSearchQueryStringFormat(input string) string {
+func openSearchQueryStringFormat(input string) string {
 	trimmedString := strings.Trim(input, "{}")
 	split := strings.Split(trimmedString, ":")
 	return split[0][1:len(split[0])-1] + ":" + split[1]
