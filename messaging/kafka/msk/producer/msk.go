@@ -45,8 +45,9 @@ func NewKafkaStream(logger *zap.Logger, host, saslScramUsername, saslScramPasswo
 	client, err := kafka.NewProducer(&config)
 	if err != nil {
 		logger.Error("failed to establish connection with MSK", zap.Error(err))
+		return nil, err
 	}
-	logger.Info("Connection Established Successfully with AWS MSK Kafka")
+	logger.Info("Successfully Established Connection with AWS MSK Kafka")
 	return &MSKEventBroker{
 		client:      client,
 		logger:      logger,

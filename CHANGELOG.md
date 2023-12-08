@@ -1,9 +1,10 @@
 # CHANGELOG
 
-## v0.1.16 -  08/12/2023
+## v0.1.16/17 -  08/12/2023
 
 FEATURES:
 
+* MSK Connection error handling
 * Refactored MSK event types and event payloads naming conventions and expected arguments
 
 ## v0.1.15 -  6/12/2023
