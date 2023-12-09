@@ -1,9 +1,18 @@
 # CHANGELOG
 
+## v0.1.18 -  09/12/2023
+
+FEATURES:
+
+* Support for MSK client via IAM 
+* Defer closing kafka producer client
+* MSK Connection error handling
+
 ## v0.1.16/17 -  08/12/2023
 
 FEATURES:
 
+* Defer closing kafka producer client
 * MSK Connection error handling
 * Refactored MSK event types and event payloads naming conventions and expected arguments
 
