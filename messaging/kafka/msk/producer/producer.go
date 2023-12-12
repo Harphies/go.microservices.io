@@ -100,6 +100,7 @@ func (k *MSKEventBroker) publish(eventType EventType, eventPayload interface{}, 
 		k.logger.Info(fmt.Sprintf("failed to publish the event type %s to topic %s with errror [%v]", eventType, topicName, err.Error()))
 		return err
 	}
+	k.logger.Info(fmt.Sprintf("event with type %s successfully published to topic %s", eventType, topicName))
 
 	return nil
 }
