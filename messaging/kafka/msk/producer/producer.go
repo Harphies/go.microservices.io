@@ -3,25 +3,30 @@ package producer
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/twmb/franz-go/pkg/kgo"
+	"github.com/twmb/franz-go/pkg/sasl/aws"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+	"net"
+	"strings"
+	"sync"
+	"time"
 )
 
 type MSKEventBroker struct {
-	client      *kafka.Producer
-	logger      *zap.Logger
-	serviceName string
-	topicName   string
+	client *kgo.Client
+	logger *zap.Logger
 }
 
 type EventType string
 
 const (
-	otelName               = "recommendationservice/internal/storage/messaging/kafka"
+	otelName               = "messaging/kafka"
 	CreatedEvent EventType = "Created"
 	DeletedEvent EventType = "Deleted"
 	UpdatedEvent EventType = "Updated"
@@ -33,29 +38,36 @@ type event struct {
 }
 
 // NewKafkaStream instantiates a Stream
-func NewKafkaStream(logger *zap.Logger, host, saslScramUsername, saslScramPassword, serviceName string) (*MSKEventBroker, error) {
-	config := kafka.ConfigMap{
-		"bootstrap.servers": host,
-		"sasl.mechanisms":   kafka.ScramMechanismSHA512,
-		"security.protocol": "SASL_SSL",
-		"sasl.username":     saslScramUsername,
-		"sasl.password":     saslScramPassword,
-	}
+func NewKafkaStream(logger *zap.Logger, host string) (*MSKEventBroker, error) {
+	sess, err := session.NewSession()
+	client, err := kgo.NewClient(
+		kgo.SeedBrokers(strings.Split(host, ",")...),
+		kgo.SASL(aws.ManagedStreamingIAM(func(ctx context.Context) (aws.Auth, error) {
+			val, err := sess.Config.Credentials.GetWithContext(ctx)
+			if err != nil {
+				logger.Error("failed to create aws session", zap.Error(err))
+				return aws.Auth{}, err
+			}
+			return aws.Auth{
+				AccessKey:    val.AccessKeyID,
+				SecretKey:    val.SecretAccessKey,
+				SessionToken: val.SessionToken,
+				UserAgent:    "franz-go/creds_test/v1.0.0",
+			}, nil
+		})),
 
-	client, err := kafka.NewProducer(&config)
+		kgo.Dialer((&tls.Dialer{NetDialer: &net.Dialer{Timeout: 10 * time.Second}}).DialContext),
+	)
+
 	if err != nil {
-		logger.Error("failed to establish connection with MSK", zap.Error(err))
+		logger.Error("failed to establish connection with AWS MSK", zap.Error(err))
 		return nil, err
 	}
 
-	//defer client.Close()
-
 	logger.Info("Successfully Established Connection with AWS MSK Kafka")
 	return &MSKEventBroker{
-		client:      client,
-		logger:      logger,
-		serviceName: serviceName,
-		topicName:   serviceName,
+		client: client,
+		logger: logger,
 	}, nil
 }
 
@@ -90,16 +102,20 @@ func (k *MSKEventBroker) publish(eventType EventType, eventPayload interface{}, 
 		return err
 	}
 
-	if err := k.client.Produce(&kafka.Message{
-		TopicPartition: kafka.TopicPartition{
-			Topic:     &topicName,
-			Partition: kafka.PartitionAny,
-		},
-		Value: b.Bytes(),
-	}, nil); err != nil {
-		k.logger.Info(fmt.Sprintf("failed to publish the event type %s to topic %s with errror [%v]", eventType, topicName, err.Error()))
-		return err
-	}
+	ctx := context.Background()
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	record := &kgo.Record{Topic: topicName, Value: b.Bytes()}
+	k.client.Produce(ctx, record, func(_ *kgo.Record, err error) {
+		defer wg.Done()
+		if err != nil {
+			k.logger.Info(fmt.Sprintf("failed to publish the event type %s to topic %s with errror [%v]", eventType, topicName, err.Error()))
+		}
+
+	})
+	wg.Wait()
+
 	k.logger.Info(fmt.Sprintf("event with type %s successfully published to topic %s", eventType, topicName))
 
 	return nil

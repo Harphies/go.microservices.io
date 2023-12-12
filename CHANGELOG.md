@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v0.1.22 -  12/12/2023
+
+FEATURES:
+
+* Replaced kafka client with kgo
+
 ## v0.1.20/21 -  12/12/2023
 
 FEATURES:
