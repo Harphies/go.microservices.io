@@ -48,7 +48,7 @@ func NewKafkaStream(logger *zap.Logger, host, saslScramUsername, saslScramPasswo
 		return nil, err
 	}
 
-	defer client.Close()
+	//defer client.Close()
 
 	logger.Info("Successfully Established Connection with AWS MSK Kafka")
 	return &MSKEventBroker{

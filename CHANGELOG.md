@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v0.1.20 -  12/12/2023
+
+FEATURES:
+
+* Fixed closing kafka client
+
 ## v0.1.19 -  12/12/2023
 
 FEATURES:
