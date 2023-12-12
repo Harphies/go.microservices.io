@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## v0.1.19 -  12/12/2023
+
+FEATURES:
+
+* Fixed typo on AWS OpenSearch Connection message
+* Refactored messaging with Kafka to dynamically pass topicName down
+
 ## v0.1.18 -  09/12/2023
 
 FEATURES:

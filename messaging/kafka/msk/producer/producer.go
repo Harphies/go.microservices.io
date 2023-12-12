@@ -60,24 +60,24 @@ func NewKafkaStream(logger *zap.Logger, host, saslScramUsername, saslScramPasswo
 }
 
 // Created publishes a message indicating a record was created.
-func (k *MSKEventBroker) Created(eventPayload interface{}) error {
+func (k *MSKEventBroker) Created(eventPayload interface{}, topicName string) error {
 	//msgType := k.serviceName + ".event.created"
-	return k.publish(CreatedEvent, eventPayload)
+	return k.publish(CreatedEvent, eventPayload, topicName)
 }
 
 // Deleted publishes a message indicating a task was deleted.
-func (k *MSKEventBroker) Deleted(id string) error {
+func (k *MSKEventBroker) Deleted(id string, topicName string) error {
 	//msgType := k.serviceName + ".event.deleted"
-	return k.publish(DeletedEvent, id)
+	return k.publish(DeletedEvent, id, topicName)
 }
 
 // Updated publishes a message indicating a task was updated.
-func (k *MSKEventBroker) Updated(eventPayload interface{}) error {
+func (k *MSKEventBroker) Updated(eventPayload interface{}, topicName string) error {
 	//mstType := k.serviceName + ".event.updated"
-	return k.publish(UpdatedEvent, eventPayload)
+	return k.publish(UpdatedEvent, eventPayload, topicName)
 }
 
-func (k *MSKEventBroker) publish(eventType EventType, eventPayload interface{}) error {
+func (k *MSKEventBroker) publish(eventType EventType, eventPayload interface{}, topicName string) error {
 
 	var b bytes.Buffer
 
@@ -92,12 +92,13 @@ func (k *MSKEventBroker) publish(eventType EventType, eventPayload interface{}) 
 
 	if err := k.client.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{
-			Topic:     &k.topicName,
+			Topic:     &topicName,
 			Partition: kafka.PartitionAny,
 		},
 		Value: b.Bytes(),
 	}, nil); err != nil {
-		fmt.Println("")
+		k.logger.Info(fmt.Sprintf("failed to publish the event type %s to topic %s with errror [%v]", eventType, topicName, err.Error()))
+		return err
 	}
 
 	return nil

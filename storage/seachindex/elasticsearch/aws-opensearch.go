@@ -34,7 +34,7 @@ func NewSearchIndex(logger *zap.Logger, endpoint string) *SearchIndex {
 	var r map[string]interface{}
 	_ = json.NewDecoder(info.Body).Decode(&r)
 	version := r["version"].(map[string]interface{})
-	logger.Info(fmt.Sprintf("Connection Eastalished with AWS OpenSearch Cluster version %v", version["number"]))
+	logger.Info(fmt.Sprintf("Connection Estalished with AWS OpenSearch Cluster version %v", version["number"]))
 	return &SearchIndex{
 		client: client,
 		logger: logger,
