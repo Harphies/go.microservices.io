@@ -30,6 +30,10 @@ Focuses on :
 
 Make it easy starting up a new `HTTP/GRPC` over `TCP/UDP` server for a process.
 
+## The DSA 
+
+The DSA Pillar is a collection of data structures and algorithms or my data to day operations and anyone that I come across that's useful.
+
 ## Usage
 
 ```shell
@@ -39,3 +43,9 @@ GOPROXY=proxy.golang.org go list -m github.com/harphies/go.microservices.io@v0.0
 # Usage
 go get github.com/harphies/go.microservices.io@<tag> 
 ```
+
+## References
+
+- https://github.com/alessiosavi/GoGPUtils
+- https://github.com/kubernetes-sigs/aws-load-balancer-controller/tree/main/pkg/algorithm
+- https://pkg.go.dev/github.com/go-ozzo/ozzo-validation/v4

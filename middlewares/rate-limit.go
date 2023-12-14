@@ -3,8 +3,10 @@ package middlewares
 import (
 	"github.com/didip/tollbooth/v7"
 	"github.com/didip/tollbooth/v7/limiter"
+	"github.com/tomasen/realip"
 	"net/http"
 	"sync"
+	"time"
 )
 
 type RateLimitOptions struct {
@@ -51,3 +53,17 @@ func (limiter *RateLimitOptions) LimitMaxConcurrentRequestPerHour(lmt *limiter.L
 }
 
 // Usage example
+
+// GetUserIP ...
+func GetUserIP(r *http.Request) string {
+	userIp := realip.FromRequest(r)
+	return userIp
+}
+
+// RateLimit middleware to rate limit http requests
+func RateLimit(next http.Handler) http.Handler {
+	// rate limit: 3(rps) requests per seconds and resets after 1 minute
+	lmt := tollbooth.NewLimiter(3, &limiter.ExpirableOptions{DefaultExpirationTTL: 5 * time.Minute})
+	ltmw := tollbooth.LimitHandler(lmt, next)
+	return ltmw
+}

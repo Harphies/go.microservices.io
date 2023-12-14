@@ -3,6 +3,9 @@ package utils
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -214,4 +217,76 @@ func GetValueFromRequestContext(r *http.Request, key string) *interface{} {
 	}
 
 	return &value
+}
+
+// WriteJsonResponse is a utility function to help write Go structs to JSON response
+func WriteJsonResponse(w http.ResponseWriter, r *http.Request, data interface{}, headers http.Header, status int) {
+	w.WriteHeader(status)
+	w.Header().Set("Content-Type", "application/json")
+	if headers != nil {
+		for key, value := range headers {
+			w.Header()[key] = value
+		}
+	}
+	resp, _ := json.MarshalIndent(data, "", "\t")
+	w.Write(resp)
+}
+
+// mtlsClient ...
+func mtlsClient() (*http.Client, error) {
+	caCert, err := ioutil.ReadFile("./certs/process-server/together.pem")
+	if err != nil {
+		return nil, errors.New("reading ca certificate")
+	}
+
+	caCertPool, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, errors.New("creating system cert pool")
+	}
+	caCertPool.AppendCertsFromPEM(caCert)
+
+	// Read the new key pair to create the certificate
+	cert, err := tls.LoadX509KeyPair("./certs/client/cert.crt", "./certs/client/key.unencrypted.pem")
+	if err != nil {
+		return nil, errors.New("reading the key pair")
+	}
+
+	// Create an HTTPS client and supply the created CA pool and certificate
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				RootCAs:      caCertPool,
+				Certificates: []tls.Certificate{cert},
+			},
+		},
+	}
+	return client, nil
+}
+
+// MtlsRequest ...
+func MtlsRequest(req *http.Request) (*http.Response, error) {
+	// Create an HTTPS client and supply the created CA pool and certificate
+	client, err := mtlsClient()
+	if err != nil {
+		return nil, errors.New("MTLS_client_creation_failed_error")
+	}
+	start := time.Now()
+
+	r, err := client.Do(req)
+	if err != nil {
+		// record the request failed metrics
+		return nil, errors.New("request_failed_error")
+	}
+	duration := time.Since(start)
+	// log the request duration as Info log level
+	fmt.Println("API request duration %v", duration)
+	// record the success request metrics
+	return r, nil
+}
+
+// GenerateBasicAuthHeader ...
+func GenerateBasicAuthHeader(username, password string) string {
+	base := username + ":" + password
+	basicAuthHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(base))
+	return basicAuthHeader
 }

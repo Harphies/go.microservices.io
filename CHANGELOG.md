@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v0.1.24 -  14/12/2023
+
+FEATURES:
+
+* Centralise utilities helper and data structures and algorithms
+
 ## v0.1.22-23 -  12/12/2023
 
 FEATURES:
