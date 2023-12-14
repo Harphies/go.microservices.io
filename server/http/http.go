@@ -25,8 +25,8 @@ func New(logger *zap.Logger, routes http.Handler, port int, wg sync.WaitGroup) e
 		Handler:           routes,
 		IdleTimeout:       time.Minute,
 		ReadHeaderTimeout: 1 * time.Second,
-		ReadTimeout:       5 * time.Second,
-		WriteTimeout:      10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
 	}
 
 	// make a channel to communicate error within processes

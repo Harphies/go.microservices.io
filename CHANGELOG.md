@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## v0.1.25 -  14/12/2023
+
+FEATURES:
+
+* Increase http server read and write timeout
+
+
 ## v0.1.24 -  14/12/2023
 
 FEATURES:
