@@ -1,9 +1,10 @@
 # CHANGELOG
 
-## v0.1.25 -  14/12/2023
+## v0.1.25-27 -  14/12/2023
 
 FEATURES:
 
+* Bump AWS SDK versions
 * Increase http server read and write timeout
 
 

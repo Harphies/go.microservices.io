@@ -19,7 +19,7 @@ type AWSDynamoDbDataStore struct {
 }
 
 func NewAWSDynamoDbDataStore(logger *zap.Logger, dbRetryAttempt, region string) *AWSDynamoDbDataStore {
-	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to load  credentials: %v", err.Error()))
 	}

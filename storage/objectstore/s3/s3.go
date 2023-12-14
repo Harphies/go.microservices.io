@@ -60,7 +60,7 @@ type (
 
 // NewAmazonS3Backend creates a new instance of AmazonS3Backend
 func NewAmazonS3Backend(logger *zap.Logger, bucket string, region string, prefix string) *AmazonS3Backend {
-	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 	if err != nil {
 		logger.Error(fmt.Sprintf("failed to load IAM Role for Service Account OIDC token credentials: [%v]", err.Error()))
 	}
