@@ -4,6 +4,7 @@
 
 FEATURES:
 
+* Experimental dynamodb
 * Bump AWS SDK versions
 * Increase http server read and write timeout
 
