@@ -49,3 +49,4 @@ go get github.com/harphies/go.microservices.io@<tag>
 - https://github.com/alessiosavi/GoGPUtils
 - https://github.com/kubernetes-sigs/aws-load-balancer-controller/tree/main/pkg/algorithm
 - https://pkg.go.dev/github.com/go-ozzo/ozzo-validation/v4
+- https://github.com/xanzy/go-gitlab/blob/main/strings.go#L28
