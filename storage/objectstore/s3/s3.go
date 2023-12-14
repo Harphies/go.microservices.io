@@ -62,7 +62,7 @@ type (
 func NewAmazonS3Backend(logger *zap.Logger, bucket string, region string, prefix string) *AmazonS3Backend {
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion(region))
 	if err != nil {
-		logger.Error("failed to load IAM Role for Service Account OIDC token credentials")
+		logger.Error(fmt.Sprintf("failed to load IAM Role for Service Account OIDC token credentials: [%v]", err.Error()))
 	}
 	service := s3client.NewFromConfig(cfg)
 	b := &AmazonS3Backend{
