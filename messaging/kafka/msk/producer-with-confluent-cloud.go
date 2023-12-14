@@ -54,7 +54,6 @@ func NewKafkaStream(logger *zap.Logger, brokerEndpoints, saslScramUsername, sasl
 
 // Publish publishes a message indicating a record was created.
 func (k *EventBroker) Publish(eventPayload interface{}, topicName, eventType string) error {
-	//msgType := k.serviceName + ".event.created"
 	return k.publish(eventType, eventPayload, topicName)
 }
 
