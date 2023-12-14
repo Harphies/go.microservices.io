@@ -1,10 +1,11 @@
 # CHANGELOG
 
-## v0.1.22 -  12/12/2023
+## v0.1.22-23 -  12/12/2023
 
 FEATURES:
 
-* Replaced kafka client with kgo
+* Simplified Events Publishing with MSK Kafka Proxy for services
+* Experiment kgo kafka client for producer
 
 ## v0.1.20/21 -  12/12/2023
 
