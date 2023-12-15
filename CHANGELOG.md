@@ -4,6 +4,7 @@
 
 FEATURES:
 
+* Messaging with AWS SQS
 * Experimental dynamodb
 * Bump AWS SDK versions
 * Increase http server read and write timeout
