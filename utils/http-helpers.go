@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"time"
 )
@@ -234,19 +235,19 @@ func WriteJsonResponse(w http.ResponseWriter, r *http.Request, data interface{},
 
 // mtlsClient ...
 func mtlsClient() (*http.Client, error) {
-	caCert, err := ioutil.ReadFile("./certs/process-server/together.pem")
+	caCert, err := ioutil.ReadFile(os.Getenv("mTLS_CERT_FILE_PATH"))
 	if err != nil {
 		return nil, errors.New("reading ca certificate")
 	}
 
-	caCertPool, err := x509.SystemCertPool()
+	caCertPool := x509.NewCertPool() //x509.SystemCertPool()
 	if err != nil {
 		return nil, errors.New("creating system cert pool")
 	}
 	caCertPool.AppendCertsFromPEM(caCert)
 
 	// Read the new key pair to create the certificate
-	cert, err := tls.LoadX509KeyPair("./certs/client/cert.crt", "./certs/client/key.unencrypted.pem")
+	cert, err := tls.LoadX509KeyPair(os.Getenv("mTLS_CERT_FILE_PATH"), os.Getenv("mTLS_CERT_KEY_PATH"))
 	if err != nil {
 		return nil, errors.New("reading the key pair")
 	}

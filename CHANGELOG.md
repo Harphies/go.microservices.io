@@ -4,6 +4,13 @@
 
 FEATURES:
 
+* HTTP utils mTLS Client connect to mTLS Server 
+* Starting an mTLS HTTP(S) server support
+
+## v0.1.25-27 -  14/12/2023
+
+FEATURES:
+
 * Messaging with AWS SQS
 * Experimental dynamodb
 * Bump AWS SDK versions
