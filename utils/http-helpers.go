@@ -19,12 +19,19 @@ import (
 	"time"
 )
 
+/*
+Refs
+https://medium.com/@kdthedeveloper/golang-http-retries-fbf7abacbe27
+https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
+http batch
+https://medium.com/@ggiovani/tcp-socket-implementation-on-golang-c38b67c5d8b
+*/
+
 const (
 	cookieName = "token"
 )
 
 // reuse your client for performance reasons
-// Red more about selection the right timeout - https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
 func httpClient() *http.Client {
 	client := &http.Client{Timeout: 10 * time.Second}
 	return client

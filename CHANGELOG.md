@@ -1,10 +1,11 @@
 # CHANGELOG
 
-## v0.1.25-27 -  14/12/2023
+## v0.1.28 -  20/12/2023
 
 FEATURES:
 
-* HTTP utils mTLS Client connect to mTLS Server 
+* Added more utility function
+* HTTP utils mTLS Client connect to mTLS Server
 * Starting an mTLS HTTP(S) server support
 
 ## v0.1.25-27 -  14/12/2023
