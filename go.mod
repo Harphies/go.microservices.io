@@ -16,6 +16,7 @@ require (
 	github.com/jackc/pgx/v5 v5.4.3
 	github.com/oklog/ulid v1.3.1
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
+	github.com/opensearch-project/opensearch-go/v3 v3.0.0
 	github.com/prometheus/client_golang v1.11.1
 	github.com/redis/go-redis/v9 v9.2.1
 	github.com/tomasen/realip v0.0.0-20180522021738-f0c99a92ddce
