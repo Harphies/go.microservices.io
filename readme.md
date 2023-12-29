@@ -54,3 +54,4 @@ go get github.com/harphies/go.microservices.io@<tag>
 - https://pkg.go.dev/github.com/go-ozzo/ozzo-validation/v4
 - https://github.com/xanzy/go-gitlab/blob/main/strings.go#L28
 - https://github.com/awsdocs/aws-doc-sdk-examples/blob/main/gov2/s3/actions/bucket_basics.go
+- [Working with Cassandra](https://medium.com/@timothy-urista/an-easy-guide-to-implementing-pagination-in-cassandra-using-go-e7d13cfc804a)
