@@ -4,6 +4,7 @@
 
 FEATURES:
 
+* S3 return uploaded file path
 * Added more utility function
 * HTTP utils mTLS Client connect to mTLS Server
 * Starting an mTLS HTTP(S) server support
