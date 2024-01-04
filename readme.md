@@ -55,3 +55,5 @@ go get github.com/harphies/go.microservices.io@<tag>
 - https://github.com/xanzy/go-gitlab/blob/main/strings.go#L28
 - https://github.com/awsdocs/aws-doc-sdk-examples/blob/main/gov2/s3/actions/bucket_basics.go
 - [Working with Cassandra](https://medium.com/@timothy-urista/an-easy-guide-to-implementing-pagination-in-cassandra-using-go-e7d13cfc804a)
+- [Argocd utils](https://github.com/argoproj/argo-cd/tree/d5955508da5e1c1d26a2526d826bafe4f697b162/util)
+- [Data structures and Algorithms](https://github.com/emirpasic/gods/)
