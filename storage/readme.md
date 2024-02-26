@@ -1,4 +1,4 @@
-# example storage implementations
+# Storage implementation
 
 ## References
 

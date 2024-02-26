@@ -1,10 +1,6 @@
-# Building Microservices and Distributed System Applications with Go
+# Internal Packages
 
-This package is an abstraction to make building microservices and distributed systems application a breeze using Go. 
-
-Most of the code will be coming from infrastructure perspective. What needs to be considered at application layer and what needs to be delegated to Infrastructure layer.
-
-I have deployed/release over 500+ microservices on Multi-tenant Kubernetes Clusters. I believe I have some experience to make a judgement on what I see that's missing and how things can be improved going forward.
+Internally consumed packages
 
 ## Pillars
 
