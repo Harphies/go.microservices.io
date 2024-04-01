@@ -6,11 +6,12 @@ import (
 )
 
 // TrackTime prints the execution duration of a function
-func TrackTime(pre time.Time) time.Duration {
-	elapsed := time.Since(pre)
-	fmt.Println("elapsed:", elapsed)
-	return elapsed
+// Usage defer TrackTime()()
+func TrackTime() func() {
+	pre := time.Now() // start the clock
+	return func() {
+		// perform the time calculation
+		elapsed := time.Since(pre)
+		fmt.Println(fmt.Sprintf("elapsed: %v", elapsed))
+	}
 }
-
-// Usage: have the below in the function you want to track its execution
-// defer TrTrackTime(time.Now())
