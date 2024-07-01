@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## v0.1.29 -  01/07/2024
+
+FEATURES:
+
+* Fixes
+
 ## v0.1.28 -  20/12/2023
 
 FEATURES:
