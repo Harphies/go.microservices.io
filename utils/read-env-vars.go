@@ -18,7 +18,7 @@ func GetEnvBool(key string) bool {
 	val := GetEnv(key, "")
 	ret, err := strconv.ParseBool(val)
 	if err != nil {
-		panic(fmt.Sprintf("some error"))
+		fmt.Println(err)
 	}
 	return ret
 }
