@@ -35,7 +35,7 @@ func NewKafkaStream(logger *zap.Logger, brokerEndpoints, saslScramUsername, sasl
 		"security.protocol":         securityProtocol,
 		"sasl.username":             saslScramUsername,
 		"sasl.password":             saslScramPassword,
-		"receive.message.max.bytes": 2147483648, // 2GB
+		"receive.message.max.bytes": 2 * 1024 * 1024 * 1024, // 2GB
 	}
 
 	client, err := kafka.NewProducer(&config)
