@@ -30,12 +30,11 @@ type event struct {
 // NewKafkaStream instantiates a Stream
 func NewKafkaStream(logger *zap.Logger, brokerEndpoints, saslScramUsername, saslScramPassword, securityProtocol string) (*EventBroker, error) {
 	config := kafka.ConfigMap{
-		"bootstrap.servers":         brokerEndpoints,
-		"sasl.mechanisms":           kafka.ScramMechanismSHA512,
-		"security.protocol":         securityProtocol,
-		"sasl.username":             saslScramUsername,
-		"sasl.password":             saslScramPassword,
-		"receive.message.max.bytes": 2 * 1024 * 1024 * 1024, // 2GB
+		"bootstrap.servers": brokerEndpoints,
+		"sasl.mechanisms":   kafka.ScramMechanismSHA512,
+		"security.protocol": securityProtocol,
+		"sasl.username":     saslScramUsername,
+		"sasl.password":     saslScramPassword,
 	}
 
 	client, err := kafka.NewProducer(&config)
