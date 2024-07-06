@@ -1,4 +1,4 @@
-package msk
+package kafka
 
 import (
 	"bytes"
@@ -28,11 +28,11 @@ type event struct {
 }
 
 // NewKafkaStream instantiates a Stream
-func NewKafkaStream(logger *zap.Logger, brokerEndpoints, saslScramUsername, saslScramPassword string) (*EventBroker, error) {
+func NewKafkaStream(logger *zap.Logger, brokerEndpoints, saslScramUsername, saslScramPassword, securityProtocol string) (*EventBroker, error) {
 	config := kafka.ConfigMap{
 		"bootstrap.servers": brokerEndpoints,
 		"sasl.mechanisms":   kafka.ScramMechanismSHA512,
-		"security.protocol": "SASL_SSL",
+		"security.protocol": securityProtocol,
 		"sasl.username":     saslScramUsername,
 		"sasl.password":     saslScramPassword,
 	}
