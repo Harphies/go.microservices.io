@@ -7,7 +7,6 @@ import (
 	"github.com/IBM/sarama"
 	"go.uber.org/zap"
 	"log"
-	"os"
 	"strings"
 	"time"
 )
@@ -19,7 +18,7 @@ type BrokerClient struct {
 }
 
 // NewKafkaStream ...
-func NewKafkaStream(logger *zap.Logger, brokerEndpoints, saslScramUsername, saslScramPassword, securityProtocol, securityMechanism string) (*BrokerClient, error) {
+func NewKafkaStream(logger *zap.Logger, brokerEndpoints, saslScramUsername, saslScramPassword, securityProtocol, securityMechanism string, useAuth bool) (*BrokerClient, error) {
 	brokerList := strings.Split(brokerEndpoints, ",")
 	config := sarama.NewConfig()
 
@@ -42,7 +41,7 @@ func NewKafkaStream(logger *zap.Logger, brokerEndpoints, saslScramUsername, sasl
 	config.Net.ReadTimeout = 30 * time.Second
 	config.Net.WriteTimeout = 30 * time.Second
 
-	if os.Getenv("KAFKA_USE_AUTH") == "true" {
+	if useAuth {
 		log.Println("UseAuth is set")
 		config.Net.SASL.Enable = true
 		config.Net.SASL.User = saslScramUsername
