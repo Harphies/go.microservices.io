@@ -28,10 +28,10 @@ type event struct {
 }
 
 // NewKafkaStream instantiates a Stream
-func NewKafkaStream(logger *zap.Logger, brokerEndpoints, saslScramUsername, saslScramPassword, securityProtocol string) (*EventBroker, error) {
+func NewKafkaStream(logger *zap.Logger, brokerEndpoints, saslScramUsername, saslScramPassword, securityProtocol, securityMechanism string) (*EventBroker, error) {
 	config := kafka.ConfigMap{
 		"bootstrap.servers": brokerEndpoints,
-		"sasl.mechanisms":   kafka.ScramMechanismSHA512,
+		"sasl.mechanisms":   securityMechanism,
 		"security.protocol": securityProtocol,
 		"sasl.username":     saslScramUsername,
 		"sasl.password":     saslScramPassword,
