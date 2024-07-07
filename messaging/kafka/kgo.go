@@ -1,4 +1,4 @@
-package msk
+package kafka
 
 //import (
 //	"bytes"
