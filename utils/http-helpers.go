@@ -27,10 +27,6 @@ http batch
 https://medium.com/@ggiovani/tcp-socket-implementation-on-golang-c38b67c5d8b
 */
 
-const (
-	cookieName = "token"
-)
-
 // reuse your client for performance reasons
 func httpClient() *http.Client {
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -183,33 +179,36 @@ func ReadQueryStringKeyOfStringValue(qs url.Values, key, defaultValue string) st
 }
 
 // SetCookie Set Authorization Token in http cookie after user signed in for stateless cookies.
-func SetCookie(w http.ResponseWriter, token string, expirationTime time.Duration) {
-	// check for zero expiration time
-	if expirationTime > 0 {
-		http.SetCookie(w, &http.Cookie{
-			Name:    cookieName,
-			Value:   token,
-			Expires: time.Now().Add(expirationTime),
-		})
+func SetCookie(w http.ResponseWriter, cookieValue, cookieName string, expirationTime time.Duration) {
+	cookie := &http.Cookie{
+		Name:     cookieName,
+		Value:    cookieValue,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/",
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:    cookieName,
-		Value:   token,
-		Expires: time.Now().Add(5 * time.Minute),
-	})
+
+	if expirationTime > 0 {
+		cookie.Expires = time.Now().Add(expirationTime)
+		http.SetCookie(w, cookie)
+		return
+	}
+	cookie.Expires = time.Now().Add(5 * time.Minute)
+	http.SetCookie(w, cookie)
 }
 
 // GetCookie retrieve token stored in cookie for a user with the name used to store the cookie
 // Use the decode method on the TokenGenerator to Decode and return the claims on that token: https://github.com/Harphies/microservices/blob/main/golang-projects/microservices-toolkits/pkg/security/authorization/jwt-token.go#L66
-func GetCookie(r *http.Request) (string, error) {
+func GetCookie(r *http.Request, cookieName string) (string, error) {
 	cookie, err := r.Cookie(cookieName)
 	if err != nil {
 		if errors.Is(err, http.ErrNoCookie) {
 			return "", errors.New("no cookie set for this user")
 		}
 	}
-	tokenString := cookie.Value
-	return tokenString, nil
+	cookieValue := cookie.Value
+	return cookieValue, nil
 }
 
 func SetValueInRequestContext(r *http.Request, key string, value interface{}) *http.Request {

@@ -13,10 +13,14 @@ type OauthServiceProvider struct {
 	clientSecret string
 	logger       *zap.Logger
 }
+
 type OauthAccessResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	Scope       string `json:"scope"`
+	AccessToken  string `json:"access_token"`
+	IdToken      string `json:"id_token"`
+	RefreshToken string `json:"refresh_token"`
+	TokenType    string `json:"token_type"`
+	Scope        string `json:"scope"`
+	ExpiresIn    int    `json:"expires_in"`
 }
 
 // Oauth2ServiceProvider ... Oauth2.0 Service Provider Interface that can be implemented by
