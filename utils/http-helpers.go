@@ -179,7 +179,7 @@ func ReadQueryStringKeyOfStringValue(qs url.Values, key, defaultValue string) st
 }
 
 // SetCookie Set Authorization Token in http cookie after user signed in for stateless cookies.
-func SetCookie(w http.ResponseWriter, cookieValue, cookieName string, expirationTime time.Duration) {
+func SetCookie(w http.ResponseWriter, cookieValue, cookieName string, expirationTime time.Duration, setCookieInHeader bool) {
 	cookie := &http.Cookie{
 		Name:     cookieName,
 		Value:    cookieValue,
@@ -191,10 +191,15 @@ func SetCookie(w http.ResponseWriter, cookieValue, cookieName string, expiration
 
 	if expirationTime > 0 {
 		cookie.Expires = time.Now().Add(expirationTime)
-		http.SetCookie(w, cookie)
+	} else {
+		cookie.Expires = time.Now().Add(5 * time.Minute)
+	}
+
+	// How the stateless cookie is managed
+	if setCookieInHeader {
+		w.Header().Set("Set-Cookie", cookie.String())
 		return
 	}
-	cookie.Expires = time.Now().Add(5 * time.Minute)
 	http.SetCookie(w, cookie)
 }
 
