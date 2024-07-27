@@ -97,7 +97,7 @@ func (t *TokenGenerator) GenerateToken(expiration time.Duration, w http.Response
 
 	// if SetCookie is true, add the cookie to request cookie for user as stateless token
 	if t.SetCookie == true && w != nil {
-		utils.SetCookie(w, signedToken, 10*time.Second)
+		utils.SetCookie(w, signedToken, "refresh_token", 10*time.Second)
 	}
 
 	// TODO: Save token in database as stateful token
@@ -146,7 +146,7 @@ func (t *TokenGenerator) RefreshToken(w http.ResponseWriter, r *http.Request, to
 
 	// Get the original Token from Cookie for Stateless Token if a token is not provided.
 	if t.SetCookie {
-		oldToken, err = utils.GetCookie(r)
+		oldToken, err = utils.GetCookie(r, "refresh_token")
 		if err != nil {
 			return "", errors.New("no token retrieved")
 		}
