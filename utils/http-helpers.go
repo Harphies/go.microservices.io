@@ -211,6 +211,34 @@ func GetCookie(r *http.Request, cookieName string) (string, error) {
 	return cookieValue, nil
 }
 
+// ClearCookies clear all the stateless cookies specified to clear on the user browser
+func ClearCookies(w http.ResponseWriter, cookiesNameList []string) {
+
+	// Set expiration to a time in the past
+	pastTime := time.Now().Add(-24 * time.Hour) // 24 hours ago
+
+	// Define the cookie object
+	cookie := &http.Cookie{
+		Value:    "",
+		Path:     "/",
+		Expires:  pastTime,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	}
+
+	// handles each cookie clearing
+	clearCookie := func(name string) {
+		cookie.Name = name
+		http.SetCookie(w, cookie)
+	}
+
+	// range all over the cookies to clear and call the function to clear each
+	for _, cookieName := range cookiesNameList {
+		clearCookie(cookieName)
+	}
+}
+
 func SetValueInRequestContext(r *http.Request, key string, value interface{}) *http.Request {
 	ctx := context.WithValue(r.Context(), key, value)
 	return r.WithContext(ctx)

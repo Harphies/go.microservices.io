@@ -1,5 +1,7 @@
 # CHANGELOG
 
+NOTE: Continuous changelog is managed in makefile git auto commit
+
 ## v0.1.29 -  01/07/2024
 
 FEATURES:
