@@ -324,17 +324,16 @@ func MtlsRequest(req *http.Request) (*http.Response, error) {
 	return r, nil
 }
 
-// GenerateBasicAuthHeader ...
-func GenerateBasicAuthHeader(username, password string) string {
-	base := username + ":" + password
-	basicAuthHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(base))
-	return basicAuthHeader
+// GenerateBasicAuth ...
+func GenerateBasicAuth(username, password string) string {
+	auth := fmt.Sprintf("%s:%s", username, password)
+	return "Basic " + base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
 func ExtractBearerToken(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		return "", fmt.Errorf("authorization header not found")
+		return "", fmt.Errorf("access token required")
 	}
 	parts := strings.Split(authHeader, " ")
 	if len(parts) != 2 || parts[0] != "Bearer" {
