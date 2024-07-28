@@ -330,3 +330,15 @@ func GenerateBasicAuthHeader(username, password string) string {
 	basicAuthHeader := "Basic " + base64.StdEncoding.EncodeToString([]byte(base))
 	return basicAuthHeader
 }
+
+func ExtractBearerToken(r *http.Request) (string, error) {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		return "", fmt.Errorf("authorization header not found")
+	}
+	parts := strings.Split(authHeader, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return "", fmt.Errorf("invalid authorization header format")
+	}
+	return parts[1], nil
+}
