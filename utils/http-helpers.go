@@ -341,3 +341,12 @@ func ExtractBearerToken(r *http.Request) (string, error) {
 	}
 	return parts[1], nil
 }
+
+// addCORSHeaders sets the CORS headers for the response
+func addCORSHeaders(w http.ResponseWriter, origin string) {
+	w.Header().Set("Access-Control-Allow-Origin", origin)
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
+	w.Header().Set("Access-Control-Max-Age", "86400")
+}
