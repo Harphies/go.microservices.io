@@ -49,6 +49,10 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 		req, err = http.NewRequest(method, endpoint, bytes.NewBuffer(bodyData))
 	case http.MethodGet:
 		req, err = http.NewRequest(method, endpoint, nil)
+		if bodyData == nil {
+			logger.Error("Unable to send Post request without Body")
+		}
+		req, err = http.NewRequest(method, endpoint, bytes.NewBuffer(bodyData))
 	case http.MethodDelete:
 		req, err = http.NewRequest(method, endpoint, nil)
 	default:
