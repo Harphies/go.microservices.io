@@ -29,7 +29,11 @@ https://medium.com/@ggiovani/tcp-socket-implementation-on-golang-c38b67c5d8b
 
 // reuse your client for performance reasons
 func httpClient() *http.Client {
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		}}
 	return client
 }
 
@@ -111,7 +115,7 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 		}
 	}()
 
-	responseBody, err := ioutil.ReadAll(res.Body)
+	responseBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		logger.Error("Unable to Decode response")
 	}
