@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -29,8 +30,18 @@ https://medium.com/@ggiovani/tcp-socket-implementation-on-golang-c38b67c5d8b
 
 // reuse your client for performance reasons
 func httpClient() *http.Client {
+	trp := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		TLSHandshakeTimeout:   20 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+		ExpectContinueTimeout: 10 * time.Second,
+	}
 	client := &http.Client{
-		Timeout: 60 * time.Second,
+		Timeout:   3 * time.Minute,
+		Transport: trp,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}}
@@ -38,7 +49,6 @@ func httpClient() *http.Client {
 }
 
 // HTTPRequest simply making http request.
-// TODO: add retry logic with exponential back-off
 func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, token string, payload interface{}, queryParams, headers map[string]string) []byte {
 	var req *http.Request
 	var err error
