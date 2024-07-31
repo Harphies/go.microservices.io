@@ -37,6 +37,8 @@ func httpClient() *http.Client {
 	return client
 }
 
+// HTTPRequest simply making http request.
+// TODO: add retry logic with exponential back-off
 func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, token string, payload interface{}, queryParams, headers map[string]string) []byte {
 	var req *http.Request
 	var err error
