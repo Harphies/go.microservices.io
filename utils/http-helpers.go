@@ -30,7 +30,7 @@ https://medium.com/@ggiovani/tcp-socket-implementation-on-golang-c38b67c5d8b
 // reuse your client for performance reasons
 func httpClient() *http.Client {
 	client := &http.Client{
-		Timeout: 10 * time.Second,
+		Timeout: 60 * time.Second,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		}}
