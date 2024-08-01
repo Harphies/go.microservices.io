@@ -27,6 +27,10 @@ https://medium.com/@kdthedeveloper/golang-http-retries-fbf7abacbe27
 https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
 http batch
 https://medium.com/@ggiovani/tcp-socket-implementation-on-golang-c38b67c5d8b
+Request Headers
+Basic Auth - https://swagger.io/docs/specification/authentication/basic-authentication/
+https://swagger.io/docs/specification/authentication/bearer-authentication/
+API Key based Authentication - https://swagger.io/docs/specification/authentication/api-keys/
 */
 
 // reuse your client for performance reasons
@@ -110,26 +114,12 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 		logger.Error("Error Occurred")
 	}
 
-	// Request Headers
-	// Basic Auth - https://swagger.io/docs/specification/authentication/basic-authentication/
-	//username := os.Getenv("USERNAME")
-	//password := os.Getenv("PASSWORD")
-	//auth := fmt.Sprintf("%s:%s", username, password)
-	//req.Header.Add("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
-
-	// Bearer Auth - https://swagger.io/docs/specification/authentication/bearer-authentication/
 	if token != "" {
 		req.Header.Add("Authorization", "Bearer "+token)
 	}
 
 	req.Header.Set("accept", "application/json")
 
-	// API Key based Authentication - https://swagger.io/docs/specification/authentication/api-keys/
-	// api key in request header
-	//req.Header.Set("X-API-Key", os.Getenv("API-KEY"))
-	//req.Header.Set("x-api-key", "api key value")
-
-	// Additional Headers
 	if headers != nil {
 		for key, value := range headers {
 			req.Header.Set(key, value) // Use Set not Add
@@ -163,6 +153,32 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 	}
 
 	return responseBody
+}
+
+// shouldRetry implements http client retry logic
+func shouldRetry(err error, resp *http.Response) bool {
+	// drain the response body before closing the connection to re-use the connection for retry
+	drainBody(resp)
+	if err != nil {
+		return true
+	}
+
+	if resp.StatusCode == http.StatusBadGateway ||
+		resp.StatusCode == http.StatusServiceUnavailable ||
+		resp.StatusCode == http.StatusGatewayTimeout {
+		return true
+	}
+	return false
+}
+
+func drainBody(res *http.Response) {
+	if res != nil || res.Body != nil {
+		_, err := io.Copy(io.Discard, res.Body)
+		err = res.Body.Close()
+		if err != nil {
+			fmt.Printf("Error closing response body: %v", err)
+		}
+	}
 }
 
 func ReadRequestBody(w http.ResponseWriter, r *http.Request, destination interface{}) error {
