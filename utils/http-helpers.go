@@ -32,15 +32,15 @@ https://medium.com/@ggiovani/tcp-socket-implementation-on-golang-c38b67c5d8b
 func httpClient() *http.Client {
 	trp := &http.Transport{
 		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
+			Timeout:   2 * time.Minute,
+			KeepAlive: 2 * time.Minute,
 		}).DialContext,
-		TLSHandshakeTimeout:   20 * time.Second,
-		ResponseHeaderTimeout: 30 * time.Second,
-		ExpectContinueTimeout: 10 * time.Second,
+		TLSHandshakeTimeout:   1 * time.Minute,
+		ResponseHeaderTimeout: 2 * time.Minute,
+		ExpectContinueTimeout: 1 * time.Minute,
 	}
 	client := &http.Client{
-		Timeout:   3 * time.Minute,
+		Timeout:   5 * time.Minute,
 		Transport: trp,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
