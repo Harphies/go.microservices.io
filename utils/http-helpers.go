@@ -33,14 +33,16 @@ func httpClient() *http.Client {
 	trp := &http.Transport{
 		DialContext: (&net.Dialer{
 			Timeout:   2 * time.Minute,
-			KeepAlive: 2 * time.Minute,
+			KeepAlive: 3 * time.Minute,
 		}).DialContext,
-		TLSHandshakeTimeout:   1 * time.Minute,
-		ResponseHeaderTimeout: 2 * time.Minute,
+		TLSHandshakeTimeout:   2 * time.Minute,
+		ResponseHeaderTimeout: 3 * time.Minute,
 		ExpectContinueTimeout: 1 * time.Minute,
+		MaxIdleConns:          10,
+		IdleConnTimeout:       90 * time.Second,
 	}
 	client := &http.Client{
-		Timeout:   5 * time.Minute,
+		Timeout:   10 * time.Minute,
 		Transport: trp,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
