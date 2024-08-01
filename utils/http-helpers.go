@@ -119,6 +119,7 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 	res, err := client.Do(req)
 	if err != nil {
 		logger.Error("Error occurred while making the http request", zap.Error(err))
+		return nil
 	}
 
 	defer func() {
