@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/http/httptrace"
 	"net/url"
 	"os"
 	"strings"
@@ -75,6 +76,32 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 		req, err = http.NewRequest(method, endpoint, nil)
 	default:
 		logger.Error("Request Unknown")
+	}
+
+	// Debug request trace
+	if GetEnvBool("ENABLE_REQUEST_TRACE") {
+		trace := &httptrace.ClientTrace{
+			GotConn: func(connInfo httptrace.GotConnInfo) {
+				fmt.Printf("Connection established: reused=%v, wasIdle=%v, idleTime=%v\n",
+					connInfo.Reused, connInfo.WasIdle, connInfo.IdleTime)
+			},
+			ConnectStart: func(network, addr string) {
+				fmt.Printf("Dialing to %s\n", addr)
+			},
+			ConnectDone: func(network, addr string, err error) {
+				if err != nil {
+					fmt.Printf("Error connecting to %s: %v\n", addr, err)
+				} else {
+					fmt.Printf("Connected to %s\n", addr)
+				}
+			},
+			GotFirstResponseByte: func() {
+				fmt.Println("First response byte received")
+			},
+		}
+
+		// Set request trace
+		req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 	}
 
 	// set a request Context
