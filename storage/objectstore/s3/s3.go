@@ -77,11 +77,12 @@ func NewAmazonS3Backend(logger *zap.Logger, bucket string, region string, prefix
 }
 
 // PutObject uploads an object to Amazon S3 bucket, at prefix
-func (b AmazonS3Backend) PutObject(path string, content []byte) (error, string) {
+func (b AmazonS3Backend) PutObject(path, contentType string, content []byte) (error, string) {
 	s3Input := &s3client.PutObjectInput{
-		Bucket: aws.String(b.Bucket),
-		Key:    aws.String(pathutil.Join(b.Prefix, path)),
-		Body:   bytes.NewBuffer(content),
+		Bucket:      aws.String(b.Bucket),
+		Key:         aws.String(pathutil.Join(b.Prefix, path)),
+		Body:        bytes.NewBuffer(content),
+		ContentType: aws.String(contentType),
 	}
 	resp, err := b.Uploader.Upload(context.TODO(), s3Input)
 	return err, *resp.Key
