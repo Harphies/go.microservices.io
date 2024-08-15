@@ -100,6 +100,7 @@ func (c *BrokerClient) publish(eventType string, eventPayload interface{}, topic
 		}
 		msg := &sarama.ProducerMessage{
 			Topic: topicName,
+			Key:   sarama.StringEncoder(eventType),
 			Value: sarama.ByteEncoder(b.Bytes()),
 		}
 
