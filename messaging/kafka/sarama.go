@@ -1,6 +1,7 @@
 package kafka
 
 import (
+	"bytes"
 	"crypto/tls"
 	"encoding/json"
 	"github.com/IBM/sarama"
@@ -87,15 +88,16 @@ func (c *BrokerClient) publish(eventType string, eventPayload interface{}, topic
 
 	// publish event
 	publishMessage := func(message interface{}) {
-		jsonData, err := json.Marshal(message)
-		if err != nil {
-			c.logger.Error("Error marshalling message: %v", zap.Error(err))
-		}
+		var b bytes.Buffer
 
+		err = json.NewEncoder(&b).Encode(message)
+		if err != nil {
+			log.Printf("Error marshalling event: %v", err)
+		}
 		msg := &sarama.ProducerMessage{
 			Topic: topicName,
 			Key:   sarama.StringEncoder(eventType),
-			Value: sarama.StringEncoder(jsonData),
+			Value: sarama.ByteEncoder(b.Bytes()),
 		}
 
 		// Send the message
