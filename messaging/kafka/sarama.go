@@ -90,11 +90,7 @@ func (c *BrokerClient) publish(eventType string, eventPayload interface{}, topic
 	publishMessage := func(message interface{}) {
 		var b bytes.Buffer
 
-		evt := event{
-			Type:  eventType,
-			Value: eventPayload,
-		}
-		err = json.NewEncoder(&b).Encode(evt)
+		err = json.NewEncoder(&b).Encode(eventPayload)
 		if err != nil {
 			log.Printf("Error marshalling event: %v", err)
 		}
