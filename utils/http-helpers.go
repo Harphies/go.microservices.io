@@ -12,9 +12,7 @@ import (
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/http"
-	"net/http/httptrace"
 	"net/url"
 	"os"
 	"strings"
@@ -27,35 +25,14 @@ https://medium.com/@kdthedeveloper/golang-http-retries-fbf7abacbe27
 https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/
 http batch
 https://medium.com/@ggiovani/tcp-socket-implementation-on-golang-c38b67c5d8b
-Request Headers
-Basic Auth - https://swagger.io/docs/specification/authentication/basic-authentication/
-https://swagger.io/docs/specification/authentication/bearer-authentication/
-API Key based Authentication - https://swagger.io/docs/specification/authentication/api-keys/
 */
 
 // reuse your client for performance reasons
 func httpClient() *http.Client {
-	trp := &http.Transport{
-		DialContext: (&net.Dialer{
-			Timeout:   2 * time.Minute,
-			KeepAlive: 3 * time.Minute,
-		}).DialContext,
-		TLSHandshakeTimeout:   2 * time.Minute,
-		ResponseHeaderTimeout: 3 * time.Minute,
-		ExpectContinueTimeout: 1 * time.Minute,
-		MaxIdleConns:          10,
-		IdleConnTimeout:       90 * time.Second,
-	}
-	client := &http.Client{
-		Timeout:   10 * time.Minute,
-		Transport: trp,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}}
+	client := &http.Client{Timeout: 10 * time.Second}
 	return client
 }
 
-// HTTPRequest simply making http request.
 func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, token string, payload interface{}, queryParams, headers map[string]string) []byte {
 	var req *http.Request
 	var err error
@@ -72,40 +49,10 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 		req, err = http.NewRequest(method, endpoint, bytes.NewBuffer(bodyData))
 	case http.MethodGet:
 		req, err = http.NewRequest(method, endpoint, nil)
-		if bodyData == nil {
-			logger.Error("Unable to send Post request without Body")
-		}
-		req, err = http.NewRequest(method, endpoint, bytes.NewBuffer(bodyData))
 	case http.MethodDelete:
 		req, err = http.NewRequest(method, endpoint, nil)
 	default:
 		logger.Error("Request Unknown")
-	}
-
-	// Debug request trace
-	if GetEnvBool("ENABLE_REQUEST_TRACE") {
-		trace := &httptrace.ClientTrace{
-			GotConn: func(connInfo httptrace.GotConnInfo) {
-				fmt.Printf("Connection established: reused=%v, wasIdle=%v, idleTime=%v\n",
-					connInfo.Reused, connInfo.WasIdle, connInfo.IdleTime)
-			},
-			ConnectStart: func(network, addr string) {
-				fmt.Printf("Dialing to %s\n", addr)
-			},
-			ConnectDone: func(network, addr string, err error) {
-				if err != nil {
-					fmt.Printf("Error connecting to %s: %v\n", addr, err)
-				} else {
-					fmt.Printf("Connected to %s\n", addr)
-				}
-			},
-			GotFirstResponseByte: func() {
-				fmt.Println("First response byte received")
-			},
-		}
-
-		// Set request trace
-		req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 	}
 
 	// set a request Context
@@ -120,6 +67,7 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 
 	req.Header.Set("accept", "application/json")
 
+	// Additional Headers
 	if headers != nil {
 		for key, value := range headers {
 			req.Header.Set(key, value) // Use Set not Add
@@ -138,7 +86,6 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 	res, err := client.Do(req)
 	if err != nil {
 		logger.Error("Error occurred while making the http request", zap.Error(err))
-		return nil
 	}
 
 	defer func() {
@@ -147,38 +94,12 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 		}
 	}()
 
-	responseBody, err := io.ReadAll(res.Body)
+	responseBody, err := ioutil.ReadAll(res.Body)
 	if err != nil {
 		logger.Error("Unable to Decode response")
 	}
 
 	return responseBody
-}
-
-// shouldRetry implements http client retry logic
-func shouldRetry(err error, resp *http.Response) bool {
-	// drain the response body before closing the connection to re-use the connection for retry
-	drainBody(resp)
-	if err != nil {
-		return true
-	}
-
-	if resp.StatusCode == http.StatusBadGateway ||
-		resp.StatusCode == http.StatusServiceUnavailable ||
-		resp.StatusCode == http.StatusGatewayTimeout {
-		return true
-	}
-	return false
-}
-
-func drainBody(res *http.Response) {
-	if res != nil || res.Body != nil {
-		_, err := io.Copy(io.Discard, res.Body)
-		err = res.Body.Close()
-		if err != nil {
-			fmt.Printf("Error closing response body: %v", err)
-		}
-	}
 }
 
 func ReadRequestBody(w http.ResponseWriter, r *http.Request, destination interface{}) error {
