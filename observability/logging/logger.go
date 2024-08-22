@@ -7,8 +7,6 @@ import (
 	"os"
 )
 
-// NewLogger Write leveled structured logs to both file destination and console
-// In the format: LogTimeStamp Log level Message
 type Config struct {
 	LogLevel     string
 	LogToFile    bool
@@ -17,6 +15,8 @@ type Config struct {
 	DevMode      bool
 }
 
+// NewLogger Write leveled structured logs to both file destination and console
+// In the format: LogTimeStamp Log level Message
 func NewLogger(config Config) (*zap.Logger, error) {
 	level, err := zapcore.ParseLevel(config.LogLevel)
 	if err != nil {
