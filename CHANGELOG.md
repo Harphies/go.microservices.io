@@ -2,6 +2,11 @@
 
 NOTE: Continuous changelog is managed in makefile git auto commit
 
+## v0.1.66 -  22/08/2024
+
+FEATURES:
+* Improved logging
+
 ## v0.1.29 -  01/07/2024
 
 FEATURES:
