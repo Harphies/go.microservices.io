@@ -48,10 +48,7 @@ func httpClient() *http.Client {
 	}
 	client := &http.Client{
 		Timeout:   10 * time.Minute,
-		Transport: trp,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		}}
+		Transport: trp}
 	return client
 }
 

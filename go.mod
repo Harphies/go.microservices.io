@@ -83,6 +83,7 @@ require (
 	github.com/lestrrat-go/iter v1.0.2 // indirect
 	github.com/lestrrat-go/jwx/v2 v2.1.1 // indirect
 	github.com/lestrrat-go/option v1.0.1 // indirect
+	github.com/linkedin/goavro/v2 v2.13.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.2-0.20181231171920-c182affec369 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
