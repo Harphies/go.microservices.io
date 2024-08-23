@@ -55,7 +55,8 @@ func getLocationFromIP(ip, ipInfoEndpoint string, logger *zap.Logger) (*IPInfo, 
 	fmt.Println("ipInfoUrl:", ipInfoUrl)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	resp, err := HTTPRequest(ctx, logger, http.MethodGet, ipInfoUrl, "", "", nil, nil)
+	resp, err := HTTPRequest(ctx, logger, http.MethodGet, ipInfoUrl, "", nil, nil, nil)
+	logger.Error("getLocationFromIP()", zap.Error(err))
 	if err != nil {
 		return nil, err
 	}
