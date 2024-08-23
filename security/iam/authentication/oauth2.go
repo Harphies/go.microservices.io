@@ -3,6 +3,7 @@ package authentication
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/harphies/go.microservices.io/utils"
 	"go.uber.org/zap"
 	"net/http"
@@ -43,7 +44,10 @@ func NewOauthServiceProvider(logger *zap.Logger, clientId, clientSecret string) 
 // Takes code, client_id, client_secret as query Params.
 func (oauth *OauthServiceProvider) GenerateTokenWithCode(ctx context.Context, endpoint string, qs, headers map[string]string) string {
 
-	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, qs, headers)
+	response, err := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, qs, headers)
+	if err != nil {
+		fmt.Println(err)
+	}
 	// Get the actual access token
 	var resp OauthAccessResponse
 	_ = json.Unmarshal(response, &resp)
@@ -55,7 +59,10 @@ func (oauth *OauthServiceProvider) GenerateTokenWithCode(ctx context.Context, en
 // Takes client_id, client_secret as query Params.
 func (oauth *OauthServiceProvider) GenerateToken(ctx context.Context, endpoint string, qs, headers map[string]string) string {
 
-	response := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, qs, nil)
+	response, err := utils.HTTPRequest(ctx, oauth.logger, http.MethodPost, endpoint, "", nil, qs, nil)
+	if err != nil {
+		fmt.Println(err)
+	}
 	// Get the actual access token
 	var resp OauthAccessResponse
 	_ = json.Unmarshal(response, &resp)

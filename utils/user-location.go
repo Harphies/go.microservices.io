@@ -54,10 +54,10 @@ func getLocationFromIP(ip, ipInfoEndpoint string, logger *zap.Logger) (*IPInfo, 
 	ipInfoUrl := fmt.Sprintf("%s/%s/json", ipInfoEndpoint, ip)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	resp := HTTPRequest(ctx, logger, http.MethodGet, ipInfoUrl, "", "", nil, nil)
+	resp, err := HTTPRequest(ctx, logger, http.MethodGet, ipInfoUrl, "", "", nil, nil)
 
 	var ipInfo IPInfo
-	err := json.Unmarshal(resp, &ipInfo)
+	err = json.Unmarshal(resp, &ipInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -82,10 +82,10 @@ func getCountryName(countryCode, countriesAPIEndpoint string, logger *zap.Logger
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	resp := HTTPRequest(ctx, logger, http.MethodGet, endpoint, "", "", queryParams, nil)
+	resp, err := HTTPRequest(ctx, logger, http.MethodGet, endpoint, "", "", queryParams, nil)
 
 	var countryInfo CountryInfo
-	err := json.Unmarshal(resp, &countryInfo)
+	err = json.Unmarshal(resp, &countryInfo)
 	if err != nil {
 		return countryCode, err
 	}
@@ -108,10 +108,10 @@ func LoadAllCountries(countriesAPIEndpoint string, logger *zap.Logger) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	resp := HTTPRequest(ctx, logger, http.MethodGet, endpoint, "", "", queryParams, nil)
+	resp, err := HTTPRequest(ctx, logger, http.MethodGet, endpoint, "", "", queryParams, nil)
 
 	var countries []CountryInfo
-	err := json.Unmarshal(resp, &countries)
+	err = json.Unmarshal(resp, &countries)
 	if err != nil {
 		return err
 	}
