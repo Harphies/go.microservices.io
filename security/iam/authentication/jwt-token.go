@@ -221,7 +221,7 @@ func ValidateAWSCognitoAccessToken(tokenString, jwksURL string) (*jwt.Token, *ti
 		}
 
 		var rawKey interface{}
-		if err := key.Raw(&rawKey); err != nil {
+		if err = key.Raw(&rawKey); err != nil {
 			return nil, fmt.Errorf("failed to get raw key: %v", err)
 		}
 
