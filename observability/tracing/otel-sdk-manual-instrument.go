@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -35,45 +34,6 @@ func NewDistributedTracingWithOpenTelemetry(logger *zap.Logger, environment, ser
 		environment: environment,
 		serviceName: serviceName,
 	}
-}
-
-// Creates Jaeger exporter
-func (t *DistributedTracing) exporterToJaeger() (*jaeger.Exporter, error) {
-	return jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(os.Getenv("OPEN_TELEMETRY_COLLECTOR_JAEGER_EXPORTER_ENDPOINT"))))
-}
-
-func (t *DistributedTracing) getSampler() trace.Sampler {
-	switch t.environment {
-	case "dev":
-		return trace.AlwaysSample()
-	case "prod":
-		return trace.ParentBased(trace.TraceIDRatioBased(0.5))
-	default:
-		return trace.AlwaysSample()
-	}
-}
-
-// Returns a new OpenTelemetry resource describing this application.
-func (t *DistributedTracing) newResource(ctx context.Context) *resource.Resource {
-	initResourcesOnce.Do(func() {
-		extraResources, err := resource.New(ctx,
-			resource.WithFromEnv(),
-			resource.WithProcess(),
-			resource.WithTelemetrySDK(),
-			resource.WithHost(),
-			resource.WithAttributes(semconv.ServiceNameKey.String(t.serviceName),
-				attribute.String("environment", t.environment),
-			),
-		)
-		if err != nil {
-			t.logger.Error(fmt.Sprintf("%s: %v", "Failed to create resource", err))
-		}
-		res, _ = resource.Merge(
-			resource.Default(),
-			extraResources,
-		)
-	})
-	return res
 }
 
 // InitProviderWithOpenTelemetryCollectorGrpcEndpoint - This enables the service to establish a GRPC connection with
@@ -127,16 +87,36 @@ func (t *DistributedTracing) InitProviderWithOpenTelemetryCollectorHTTPEndpoint(
 	return tp.Shutdown, nil
 }
 
-func (t *DistributedTracing) InitProviderWithJaegerExporter(ctx context.Context) (func(context.Context) error, error) {
-	exp, err := t.exporterToJaeger()
-	if err != nil {
-		t.logger.Error(fmt.Sprintf("error: %s", err.Error()))
+// Returns a new OpenTelemetry resource describing this application.
+func (t *DistributedTracing) newResource(ctx context.Context) *resource.Resource {
+	initResourcesOnce.Do(func() {
+		extraResources, err := resource.New(ctx,
+			resource.WithFromEnv(),
+			resource.WithProcess(),
+			resource.WithTelemetrySDK(),
+			resource.WithHost(),
+			resource.WithAttributes(semconv.ServiceNameKey.String(t.serviceName),
+				attribute.String("environment", t.environment),
+			),
+		)
+		if err != nil {
+			t.logger.Error(fmt.Sprintf("%s: %v", "Failed to create resource", err))
+		}
+		res, _ = resource.Merge(
+			resource.Default(),
+			extraResources,
+		)
+	})
+	return res
+}
+
+func (t *DistributedTracing) getSampler() trace.Sampler {
+	switch t.environment {
+	case "dev":
+		return trace.AlwaysSample()
+	case "prod":
+		return trace.ParentBased(trace.TraceIDRatioBased(0.5))
+	default:
+		return trace.AlwaysSample()
 	}
-	tp := trace.NewTracerProvider(
-		trace.WithSampler(t.getSampler()),
-		trace.WithBatcher(exp),
-		trace.WithResource(t.newResource(ctx)),
-	)
-	otel.SetTracerProvider(tp)
-	return tp.Shutdown, nil
 }
