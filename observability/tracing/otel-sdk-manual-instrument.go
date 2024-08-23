@@ -78,6 +78,7 @@ func (t *DistributedTracing) newResource(ctx context.Context) *resource.Resource
 
 // InitProviderWithOpenTelemetryCollectorGrpcEndpoint - This enables the service to establish a GRPC connection with
 // OpenTelemetry Collector using the standard environment variable `OTEL_EXPORTER_OTLP_ENDPOINT` on the process to look up the OpenTelemetry Collector GRPC endpoint.
+// Then OpenTelemetry Collector Agent collect traces from this service
 func (t *DistributedTracing) InitProviderWithOpenTelemetryCollectorGrpcEndpoint() (*trace.TracerProvider, error) {
 	ctx := context.Background()
 
