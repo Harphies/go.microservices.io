@@ -15,7 +15,7 @@ type Config struct {
 	DevMode      bool
 }
 
-// NewLogger Write leveled structured logs to both file destination and console
+// NewLogger Write leveled structured logs to either standard err, console or file destination
 // In the format: LogTimeStamp Log level Message
 func NewLogger(config Config) (*zap.Logger, error) {
 	level, err := zapcore.ParseLevel(config.LogLevel)
@@ -72,23 +72,3 @@ func NewLogger(config Config) (*zap.Logger, error) {
 
 	return logger, nil
 }
-
-/*
-Example Usage
-config := logger.Config{
-    LogLevel:     "info",
-    LogToFile:    true,
-    LogFilePath:  "/var/log/myapp.log",
-    LogToConsole: true,
-    DevMode:      false,
-}
-
-log, err := logger.NewLogger(config)
-if err != nil {
-    // Handle error
-}
-defer log.Sync()
-
-// Use the logger
-log.Info("Application started")
-*/

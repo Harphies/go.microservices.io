@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -27,79 +28,87 @@ http batch
 https://medium.com/@ggiovani/tcp-socket-implementation-on-golang-c38b67c5d8b
 */
 
-// reuse your client for performance reasons
-func httpClient() *http.Client {
-	client := &http.Client{Timeout: 10 * time.Second}
-	return client
-}
+const (
+	defaultTimeout         = 10 * time.Second
+	defaultMaxIdleConns    = 100
+	defaultIdleConnTimeout = 90 * time.Second
+)
 
-func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, token string, payload interface{}, queryParams, headers map[string]string) []byte {
-	var req *http.Request
-	var err error
-	client := httpClient()
-
-	// encode the payload
-	bodyData, err := json.Marshal(payload)
-
-	switch method {
-	case http.MethodPost:
-		if bodyData == nil {
-			logger.Error("Unable to send Post request without Body")
-		}
-		req, err = http.NewRequest(method, endpoint, bytes.NewBuffer(bodyData))
-	case http.MethodGet:
-		req, err = http.NewRequest(method, endpoint, nil)
-	case http.MethodDelete:
-		req, err = http.NewRequest(method, endpoint, nil)
-	default:
-		logger.Error("Request Unknown")
+// NewHTTPClient reuse your client for performance reasons
+func NewHTTPClient(timeout time.Duration) *http.Client {
+	if timeout == 0 {
+		timeout = defaultTimeout
 	}
 
-	// set a request Context
-	req = req.WithContext(ctx)
+	transport := &http.Transport{
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:        defaultMaxIdleConns,
+		IdleConnTimeout:     defaultIdleConnTimeout,
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
+
+	return &http.Client{
+		Timeout:   timeout,
+		Transport: transport,
+	}
+}
+
+// HTTPRequest sends an HTTP request and returns the response body
+func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, token string, payload interface{}, queryParams, headers map[string]string) ([]byte, error) {
+	client := NewHTTPClient(10 * time.Second)
+
+	var body io.Reader
+	if payload != nil {
+		bodyData, err := json.Marshal(payload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal payload: %w", err)
+		}
+		body = bytes.NewBuffer(bodyData)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
 	if err != nil {
-		logger.Error("Error Occurred")
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	if token != "" {
-		req.Header.Add("Authorization", "Bearer "+token)
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	req.Header.Set("Accept", "application/json")
+
+	for key, value := range headers {
+		req.Header.Set(key, value)
 	}
 
-	req.Header.Set("accept", "application/json")
-
-	// Additional Headers
-	if headers != nil {
-		for key, value := range headers {
-			req.Header.Set(key, value) // Use Set not Add
-		}
+	q := req.URL.Query()
+	for key, value := range queryParams {
+		q.Add(key, value)
 	}
-
-	// Add Request Query Params if Any
-	if queryParams != nil {
-		for key, value := range queryParams {
-			q := req.URL.Query()
-			q.Add(key, value)
-			req.URL.RawQuery = q.Encode()
-		}
-	}
+	req.URL.RawQuery = q.Encode()
 
 	res, err := client.Do(req)
 	if err != nil {
-		logger.Error("Error occurred while making the http request", zap.Error(err))
+		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-
 	defer func() {
-		if err = res.Body.Close(); err != nil {
-			logger.Error(fmt.Sprintf("failed to close processed request after transaction complete: %v", err.Error()))
+		if cerr := res.Body.Close(); cerr != nil {
+			logger.Error("Failed to close response body", zap.Error(cerr))
 		}
 	}()
 
-	responseBody, err := ioutil.ReadAll(res.Body)
+	responseBody, err := io.ReadAll(res.Body)
 	if err != nil {
-		logger.Error("Unable to Decode response")
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	return responseBody
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("unexpected status code: %d", res.StatusCode)
+	}
+
+	return responseBody, nil
 }
 
 func ReadRequestBody(w http.ResponseWriter, r *http.Request, destination interface{}) error {
