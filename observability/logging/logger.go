@@ -60,6 +60,12 @@ func NewLogger(config Config) (*zap.Logger, error) {
 		cores = append(cores, zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level))
 	}
 
+	// If no logging output is configured, log to stderr as a fallback
+	if len(cores) == 0 {
+		consoleEncoder := zapcore.NewJSONEncoder(encoderConfig)
+		cores = append(cores, zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stderr), level))
+	}
+
 	core := zapcore.NewTee(cores...)
 
 	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
