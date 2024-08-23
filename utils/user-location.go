@@ -52,9 +52,13 @@ func GetUserLocationFromIPAddress(r *http.Request, logger *zap.Logger, countries
 
 func getLocationFromIP(ip, ipInfoEndpoint string, logger *zap.Logger) (*IPInfo, error) {
 	ipInfoUrl := fmt.Sprintf("%s/%s/json", ipInfoEndpoint, ip)
+	fmt.Println("ipInfoUrl:", ipInfoUrl)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	resp, err := HTTPRequest(ctx, logger, http.MethodGet, ipInfoUrl, "", "", nil, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	var ipInfo IPInfo
 	err = json.Unmarshal(resp, &ipInfo)
