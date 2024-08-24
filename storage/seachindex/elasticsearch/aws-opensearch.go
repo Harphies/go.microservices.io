@@ -144,31 +144,25 @@ func (s *SearchIndex) createIndex(indexName string) error {
 
 // Search searches across all indices with a given prefix
 func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interface{}, sortField string) ([]map[string]interface{}, error) {
-	// Construct the index pattern to match all indices with the given prefix
 	indexPattern := fmt.Sprintf("%s-*", baseIndexName)
 
-	// Build the search query
 	query, err := buildSearchQuery(queryParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build search query: %w", err)
 	}
 
-	// Log the constructed query for debugging
 	s.logger.Debug("Constructed search query", zap.String("query", query))
 
-	// Prepare search request
 	searchRequest := opensearchapi.SearchRequest{
 		Index: []string{indexPattern},
 		Body:  strings.NewReader(query),
-		Size:  opensearchapi.IntPtr(1000), // Adjust this value based on your needs
+		Size:  opensearchapi.IntPtr(1000), //adjust based on need or parameterise it
 	}
 
-	// Add sort if sortField is provided
 	if sortField != "" {
 		searchRequest.Sort = []string{fmt.Sprintf("%s:desc", sortField)}
 	}
 
-	// Perform the search request
 	res, err := searchRequest.Do(s.ctx, s.client)
 	if err != nil {
 		return nil, fmt.Errorf("search request failed: %w", err)
@@ -180,14 +174,12 @@ func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interf
 
 	if res.IsError() {
 		var e map[string]interface{}
-		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
+		if err = json.NewDecoder(res.Body).Decode(&e); err != nil {
 			return nil, fmt.Errorf("error parsing the response body: %w", err)
 		}
 
-		// Log the full error response for debugging
 		s.logger.Error("Search request failed", zap.Any("error_response", e))
 
-		// Check for specific error types and provide more detailed information
 		if rootCause, ok := e["error"].(map[string]interface{})["root_cause"].([]interface{}); ok && len(rootCause) > 0 {
 			cause := rootCause[0].(map[string]interface{})
 			return nil, fmt.Errorf("search failed: type: %v, reason: %v", cause["type"], cause["reason"])
@@ -207,7 +199,7 @@ func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interf
 	for i, hit := range hits {
 		source := hit.(map[string]interface{})["_source"].(map[string]interface{})
 		index := hit.(map[string]interface{})["_index"].(string)
-		source["_index"] = index // Include the index name in the result
+		source["_index"] = index
 		results[i] = source
 	}
 
@@ -249,6 +241,12 @@ func buildSearchQuery(queryParams map[string]interface{}) (string, error) {
 		case map[string]interface{}:
 			must = append(must, map[string]interface{}{
 				"range": map[string]interface{}{
+					key: v,
+				},
+			})
+		case float64:
+			must = append(must, map[string]interface{}{
+				"term": map[string]interface{}{
 					key: v,
 				},
 			})
