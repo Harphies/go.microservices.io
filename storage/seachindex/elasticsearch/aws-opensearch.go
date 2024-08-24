@@ -22,6 +22,7 @@ Improvements
 4. Index optimization, fine-tune index settings and mappings
 5. time-based indices - Index partitioning and Lifecycle management
 6. Add more templates for different sort of indices
+7. Periodic Record Cleanup
 */
 
 type SearchIndex struct {
