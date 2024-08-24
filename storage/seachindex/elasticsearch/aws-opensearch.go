@@ -146,7 +146,13 @@ func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interf
 	indexPattern := fmt.Sprintf("%s-*", baseIndexName)
 
 	// Build the search query
-	query := buildSearchQuery(queryParams)
+	query, err := buildSearchQuery(queryParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build search query: %w", err)
+	}
+
+	// Log the constructed query for debugging
+	s.logger.Debug("Constructed search query", zap.String("query", query))
 
 	// Prepare search request
 	searchRequest := opensearchapi.SearchRequest{
@@ -172,14 +178,19 @@ func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interf
 
 	if res.IsError() {
 		var e map[string]interface{}
-		if err = json.NewDecoder(res.Body).Decode(&e); err != nil {
+		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
 			return nil, fmt.Errorf("error parsing the response body: %w", err)
 		}
-		// Check if the error is due to missing field in sorting
-		if reason, ok := e["error"].(map[string]interface{})["reason"].(string); ok && strings.Contains(reason, "No mapping found for") {
-			s.logger.Warn("Sorting field not found, retrying without sort", zap.String("sortField", sortField))
-			return s.Search(baseIndexName, queryParams, "") // Retry without sort
+
+		// Log the full error response for debugging
+		s.logger.Error("Search request failed", zap.Any("error_response", e))
+
+		// Check for specific error types and provide more detailed information
+		if rootCause, ok := e["error"].(map[string]interface{})["root_cause"].([]interface{}); ok && len(rootCause) > 0 {
+			cause := rootCause[0].(map[string]interface{})
+			return nil, fmt.Errorf("search failed: type: %v, reason: %v", cause["type"], cause["reason"])
 		}
+
 		return nil, fmt.Errorf("search request failed: %s", res.String())
 	}
 
@@ -216,15 +227,32 @@ func (s *SearchIndex) checkIndex(indexName string) (bool, error) {
 }
 
 // buildSearchQuery constructs the OpenSearch query from the provided parameters
-func buildSearchQuery(queryParams map[string]interface{}) string {
+func buildSearchQuery(queryParams map[string]interface{}) (string, error) {
 	must := []map[string]interface{}{}
 
 	for key, value := range queryParams {
-		must = append(must, map[string]interface{}{
-			"match": map[string]interface{}{
-				key: value,
-			},
-		})
+		switch v := value.(type) {
+		case string:
+			must = append(must, map[string]interface{}{
+				"match": map[string]interface{}{
+					key: v,
+				},
+			})
+		case []string:
+			must = append(must, map[string]interface{}{
+				"terms": map[string]interface{}{
+					key: v,
+				},
+			})
+		case map[string]interface{}:
+			must = append(must, map[string]interface{}{
+				"range": map[string]interface{}{
+					key: v,
+				},
+			})
+		default:
+			return "", fmt.Errorf("unsupported value type for key %s: %T", key, value)
+		}
 	}
 
 	query := map[string]interface{}{
@@ -235,8 +263,12 @@ func buildSearchQuery(queryParams map[string]interface{}) string {
 		},
 	}
 
-	queryJSON, _ := json.Marshal(query)
-	return string(queryJSON)
+	queryJSON, err := json.Marshal(query)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal query: %w", err)
+	}
+
+	return string(queryJSON), nil
 }
 
 // BulkIndex performs bulk indexing of documents
