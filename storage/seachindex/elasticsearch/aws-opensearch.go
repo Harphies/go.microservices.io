@@ -10,7 +10,18 @@ import (
 	requestsigner "github.com/opensearch-project/opensearch-go/v2/signer/awsv2"
 	"go.uber.org/zap"
 	"strings"
+	"sync"
+	"time"
 )
+
+/*
+Improvements
+1. OpenSearch Connection Pooling - reusing connection efficiently
+2. Batch processing of operations
+3. Caching of frequently assessed data
+4. Index optimization, fine-tune index settings and mappings
+5. time-based indices - Index partitioning and Lifecycle management
+*/
 
 type SearchIndex struct {
 	client *opensearch.Client
@@ -18,144 +29,303 @@ type SearchIndex struct {
 	ctx    context.Context
 }
 
-func NewSearchIndex(logger *zap.Logger, endpoint string) *SearchIndex {
+func NewSearchIndex(logger *zap.Logger, endpoint string) (*SearchIndex, error) {
 	ctx := context.Background()
-	cfg, _ := config.LoadDefaultConfig(ctx)
-	signer, _ := requestsigner.NewSigner(cfg)
-	client, _ := opensearch.NewClient(opensearch.Config{
+	cfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
+	}
+
+	signer, err := requestsigner.NewSigner(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create signer: %w", err)
+	}
+
+	client, err := opensearch.NewClient(opensearch.Config{
 		Addresses: []string{endpoint},
 		Signer:    signer,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create OpenSearch client: %w", err)
+	}
+
 	info, err := client.Info()
 	if err != nil {
 		logger.Error("failed to establish connection with AWS OpenSearch Cluster", zap.Error(err))
-		return nil
+		return nil, err
 	}
+
 	var r map[string]interface{}
-	_ = json.NewDecoder(info.Body).Decode(&r)
+	if err := json.NewDecoder(info.Body).Decode(&r); err != nil {
+		return nil, fmt.Errorf("failed to decode cluster info: %w", err)
+	}
+
 	version := r["version"].(map[string]interface{})
-	logger.Info(fmt.Sprintf("Connection Estalished with AWS OpenSearch Cluster version %v", version["number"]))
+	logger.Info("Connection established with AWS OpenSearch Cluster", zap.String("version", version["number"].(string)))
+
 	return &SearchIndex{
 		client: client,
 		logger: logger,
 		ctx:    ctx,
-	}
+	}, nil
 }
 
-// IndexRecord - Create an Index does not exist and index the incoming document
-func (s *SearchIndex) IndexRecord(indexName, recordId string, item interface{}) {
+func (s *SearchIndex) getIndexName(baseIndexName string, date time.Time) string {
+	return fmt.Sprintf("%s-%s", baseIndexName, date.Format("2006.01.02"))
+}
+
+func (s *SearchIndex) IndexRecord(baseIndexName string, recordId string, item interface{}, date time.Time) error {
+	indexName := s.getIndexName(baseIndexName, date)
+
 	// Check if the Index exists before indexing the record
-	if indexResp := s.checkIndex(indexName); indexResp == nil {
-		s.logger.Info(fmt.Sprintf("Index with name %s does not exist in the OpenSearch Cluster. Creating it......", indexName))
-		s.createIndex(indexName)
+	exists, err := s.checkIndex(indexName)
+	if err != nil {
+		return fmt.Errorf("failed to check index: %w", err)
+	}
+
+	if !exists {
+		s.logger.Info("Index does not exist. Creating it...", zap.String("index", indexName))
+		if err := s.createIndex(indexName); err != nil {
+			return fmt.Errorf("failed to create index: %w", err)
+		}
 	}
 
 	// Index records
-	record, _ := json.Marshal(item)
+	record, err := json.Marshal(item)
+	if err != nil {
+		return fmt.Errorf("failed to marshal record: %w", err)
+	}
+
 	req := opensearchapi.IndexRequest{
 		Index:      indexName,
 		DocumentID: recordId,
 		Body:       strings.NewReader(string(record)),
 	}
-	_, err := req.Do(s.ctx, s.client)
+
+	res, err := req.Do(s.ctx, s.client)
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("error occurred: [%s]", err.Error()))
+		return fmt.Errorf("failed to index document: %w", err)
 	}
-	// refresh the index to make the documents searchable
+
+	defer func() {
+		err = res.Body.Close()
+	}()
+
+	if res.IsError() {
+		return fmt.Errorf("index request failed: %s", res.String())
+	}
+
+	// Refresh the index to make the documents searchable
 	_, err = s.client.Indices.Refresh(s.client.Indices.Refresh.WithIndex(indexName))
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("error occurred: [%s]", err.Error()))
+		return fmt.Errorf("failed to refresh index: %w", err)
 	}
-	s.logger.Info(fmt.Sprintf("Record with Id %s successfully Indexed and Index Refreshed", recordId))
+
+	s.logger.Info("Record indexed and index refreshed", zap.String("recordId", recordId), zap.String("index", indexName))
+	return nil
 }
 
-func (s *SearchIndex) DeleteIndex(indexName string) {
-	deleteIndex := opensearchapi.IndicesDeleteRequest{
-		Index: []string{indexName},
+func (s *SearchIndex) SearchDateRange(baseIndexName string, startDate, endDate time.Time, queryParams map[string]string) ([]map[string]interface{}, error) {
+	var indexNames []string
+	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
+		indexNames = append(indexNames, s.getIndexName(baseIndexName, d))
 	}
-	deleteIndexResponse, err := deleteIndex.Do(s.ctx, s.client)
 
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("failed to delete Index: %v", err))
-	}
-	s.logger.Info(fmt.Sprintf("Index deleted successfully: %v", deleteIndexResponse))
-}
+	query := buildSearchQuery(queryParams)
 
-func (s *SearchIndex) Search(indexName string, queryParams map[string]string) {
-	basicSearchParam, _ := json.Marshal(queryParams)
-	parsedSearchParam := openSearchQueryStringFormat(string(basicSearchParam))
-	s.logger.Info(fmt.Sprintf("trimmed stringify input:: %v", parsedSearchParam))
-	s.basicSearch(indexName, parsedSearchParam)
-	/*
-		// Returned response format for match hits
-			{"took":1487,"timed_out":false,"_shards":{"total":3,"successful":3,"skipped":0,"failed":0},"hits":{"total":{"value":5,"relation":"eq"},"max_score":0.2876821,"hits":[{"_index":"treatments","_id":"mFBIqIoBZVk5hzSKWsdN","_score":0.2876821,"_source":{"name":"stm-cancer-c8","description":"A api-server for colon cancer stage II","image":"image from s3","price":"78","type":"traditional","cure":"cancer","certifiedBy":["NVD"]}},{"_index":"treatments","_id":"ev1AqIoBjkovibuuqhSr","_score":0.18232156,"_source":{"name":"stm-cancer-c5","description":"A api-server for colon cancer stage II","image":"image from s3","price":"67","type":"medical","cure":"cancer","certified":true,"certifiedBy":["LBS"]}},{"_index":"treatments","_id":"ff1KqIoBjkovibuuNxQl","_score":0.18232156,"_source":{"name":"stm-diabetics-d6","description":"A api-server for dibatetics type II","image":"image from s3","price":"88","type":"traditional","cure":"cancer","certified":true,"certifiedBy":["LLM"]}},{"_index":"treatments","_id":"e_1JqIoBjkovibuuHBQR","_score":0.18232156,"_source":{"name":"stm-cancer-k7","description":"A api-server for blood cancer stage II","image":"image from s3","price":"59","type":"medical","cure":"cancer","certified":true,"certifiedBy":["NHS"]}},{"_index":"treatments","_id":"fP1JqIoBjkovibuulRSB","_score":0.18232156,"_source":{"name":"stm-cancer-d6","description":"A api-server for malaria","image":"image from s3","price":"109","type":"medical","cure":"cancer","certifiedBy":["NHS"]}}]}}]
-	*/
-}
-
-// SearchAll searched for all document in an index.
-func (s *SearchIndex) SearchAll(indexName string) {
 	res, err := s.client.Search(
-		s.client.Search.WithIndex(indexName))
+		s.client.Search.WithContext(s.ctx),
+		s.client.Search.WithIndex(indexNames...),
+		s.client.Search.WithBody(strings.NewReader(query)),
+	)
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("error occured: [%s]", err.Error()))
+		return nil, fmt.Errorf("search request failed: %w", err)
 	}
-	s.logger.Info(fmt.Sprintf("response: [%+v]", res))
+
+	defer func() {
+		err = res.Body.Close()
+	}()
+
+	if res.IsError() {
+		return nil, fmt.Errorf("search request failed: %s", res.String())
+	}
+
+	var result map[string]interface{}
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse search response: %w", err)
+	}
+
+	hits := result["hits"].(map[string]interface{})["hits"].([]interface{})
+	results := make([]map[string]interface{}, len(hits))
+
+	for i, hit := range hits {
+		results[i] = hit.(map[string]interface{})["_source"].(map[string]interface{})
+	}
+
+	return results, nil
 }
 
-func (s *SearchIndex) createIndex(indexName string) {
+func (s *SearchIndex) createIndex(indexName string) error {
 	mapping := strings.NewReader(`{
-	 "settings": {
-	   "index": {
-	        "number_of_shards": 3,
-			"number_of_replicas": 0
-	        }
-	      }
-	 }`)
+		"settings": {
+			"index": {
+				"number_of_shards": 3,
+				"number_of_replicas": 0
+			}
+		},
+		"mappings": {
+			"properties": {
+				"timestamp": {
+					"type": "date"
+				}
+			}
+		}
+	}`)
+
 	createIndex := opensearchapi.IndicesCreateRequest{
 		Index: indexName,
 		Body:  mapping,
 	}
-	createIndexResponse, err := createIndex.Do(s.ctx, s.client)
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("failed to create Index: %v", err.Error()))
-	}
-	s.logger.Info(fmt.Sprintf("Index created successfully: %v", createIndexResponse))
-}
 
-// checkIndex - Check if an Index exists
-func (s *SearchIndex) checkIndex(indexName string) interface{} {
-	res, _ := s.client.Indices.Get([]string{indexName})
-	var r map[string]interface{}
-	_ = json.NewDecoder(res.Body).Decode(&r)
-	if r[indexName] != nil {
-		return r
+	res, err := createIndex.Do(s.ctx, s.client)
+	if err != nil {
+		return fmt.Errorf("failed to create index: %w", err)
 	}
+
+	defer func() {
+		err = res.Body.Close()
+	}()
+
+	if res.IsError() {
+		return fmt.Errorf("create index request failed: %s", res.String())
+	}
+
+	s.logger.Info("Index created successfully", zap.String("index", indexName))
 	return nil
 }
 
-func (s *SearchIndex) basicSearch(indexName, query string) {
-	part, err := s.client.Search(
-		s.client.Search.WithIndex(indexName),
-		s.client.Search.WithQuery(fmt.Sprintf(`%s`, query)))
-
+func (s *SearchIndex) checkIndex(indexName string) (bool, error) {
+	res, err := s.client.Indices.Exists([]string{indexName})
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("search request failed"))
+		return false, fmt.Errorf("failed to check index existence: %w", err)
 	}
-	var r map[string]interface{}
-	_ = json.NewDecoder(part.Body).Decode(&r)
-	hits := r["hits"].(map[string]interface{})
-	resp := hits["hits"]
-	s.logger.Info(fmt.Sprintf("search response hits: [%+v]", resp))
+	defer func() {
+		err = res.Body.Close()
+	}()
+
+	return !res.IsError(), nil
 }
 
-func (s *SearchIndex) complexQuery(indexName string, query interface{}) {
-
+func buildSearchQuery(queryParams map[string]string) string {
+	var conditions []string
+	for key, value := range queryParams {
+		conditions = append(conditions, fmt.Sprintf(`{"match": {"%s": "%s"}}`, key, value))
+	}
+	query := fmt.Sprintf(`
+	{
+		"query": {
+			"bool": {
+				"must": [
+					%s
+				]
+			}
+		}
+	}`, strings.Join(conditions, ","))
+	return query
 }
 
-// Formatted String for OpenSearch Query String Format
+// BulkIndex performs bulk indexing of documents
+func (s *SearchIndex) BulkIndex(baseIndexName string, documents []map[string]interface{}) error {
+	var (
+		wg        sync.WaitGroup
+		batchSize = 1000
+		batches   = (len(documents) + batchSize - 1) / batchSize
+	)
 
-func openSearchQueryStringFormat(input string) string {
-	trimmedString := strings.Trim(input, "{}")
-	split := strings.Split(trimmedString, ":")
-	return split[0][1:len(split[0])-1] + ":" + split[1]
+	for i := 0; i < batches; i++ {
+		wg.Add(1)
+		go func(start int) {
+			defer wg.Done()
+			end := start + batchSize
+			if end > len(documents) {
+				end = len(documents)
+			}
+
+			bulk := &strings.Builder{}
+			for j := start; j < end; j++ {
+				doc := documents[j]
+				timestamp, ok := doc["timestamp"].(time.Time)
+				if !ok {
+					s.logger.Error("Document missing timestamp", zap.Int("index", j))
+					continue
+				}
+				indexName := s.getIndexName(baseIndexName, timestamp)
+				meta := []byte(fmt.Sprintf(`{"index":{"_index":"%s","_id":"%d"}}%s`, indexName, j, "\n"))
+				data, _ := json.Marshal(doc)
+				data = append(data, "\n"...)
+
+				bulk.Write(meta)
+				bulk.Write(data)
+			}
+
+			res, err := s.client.Bulk(strings.NewReader(bulk.String()))
+			if err != nil {
+				s.logger.Error("Bulk indexing failed", zap.Error(err))
+				return
+			}
+			defer func() {
+				err = res.Body.Close()
+			}()
+
+			if res.IsError() {
+				s.logger.Error("Bulk indexing request failed", zap.String("response", res.String()))
+			}
+		}(i * batchSize)
+	}
+
+	wg.Wait()
+	return nil
+}
+
+// CreateIndexTemplate creates an index template for time-based indices
+func (s *SearchIndex) CreateIndexTemplate(baseIndexName string) error {
+	template := fmt.Sprintf(`{
+		"index_patterns": ["%s-*"],
+		"template": {
+			"settings": {
+				"number_of_shards": 3,
+				"number_of_replicas": 0
+			},
+			"mappings": {
+				"properties": {
+					"timestamp": {
+						"type": "date"
+					}
+				}
+			}
+		}
+	}`, baseIndexName)
+
+	req := opensearchapi.IndicesPutIndexTemplateRequest{
+		Name: baseIndexName + "-template",
+		Body: strings.NewReader(template),
+	}
+
+	res, err := req.Do(s.ctx, s.client)
+	if err != nil {
+		return fmt.Errorf("failed to create index template: %w", err)
+	}
+	defer func() {
+		err = res.Body.Close()
+		if err != nil {
+			s.logger.Error("Failed to close response body", zap.Error(err))
+		}
+	}()
+
+	if res.IsError() {
+		return fmt.Errorf("create index template request failed: %s", res.String())
+	}
+
+	s.logger.Info("Index template created successfully", zap.String("template", baseIndexName+"-template"))
+	return nil
 }
