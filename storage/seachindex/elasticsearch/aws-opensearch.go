@@ -9,7 +9,6 @@ import (
 	"github.com/opensearch-project/opensearch-go/v2/opensearchapi"
 	requestsigner "github.com/opensearch-project/opensearch-go/v2/signer/awsv2"
 	"go.uber.org/zap"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -81,48 +80,19 @@ func NewSearchIndex(logger *zap.Logger, endpoint string) (*SearchIndex, error) {
 	}, nil
 }
 
-func (s *SearchIndex) createIndex(indexName string) {
-	mapping := strings.NewReader(`{
-	 "settings": {
-	   "index": {
-	        "number_of_shards": 3,
-			"number_of_replicas": 0
-	        }
-	      }
-	 }`)
-	createIndex := opensearchapi.IndicesCreateRequest{
-		Index: indexName,
-		Body:  mapping,
-	}
-	createIndexResponse, err := createIndex.Do(s.ctx, s.client)
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("failed to create Index: %v", err.Error()))
-	}
-	s.logger.Info(fmt.Sprintf("Index created successfully: %v", createIndexResponse))
-}
-
-func (s *SearchIndex) getIndexName(baseIndexName string, date time.Time) string {
-	return fmt.Sprintf("%s-%s", baseIndexName, date.Format("2006.01.02"))
-}
-
 func (s *SearchIndex) IndexRecord(baseIndexName string, recordId string, record interface{}) error {
-	// Determine the timestamp for indexing
 	timestamp := time.Now()
 	indexName := s.getIndexName(baseIndexName, timestamp)
-	// Check if the Index exists before indexing the record
 	if ok, _ := s.checkIndex(indexName); !ok {
 		s.logger.Info(fmt.Sprintf("Index with name %s does not exist in the OpenSearch Cluster. Creating it......", indexName))
-		s.createIndex(indexName)
-	}
-
-	// Prepare the document to be indexed
-	doc, err := prepareDocument(record)
-	if err != nil {
-		return fmt.Errorf("failed to prepare document: %w", err)
+		err := s.createIndex(indexName)
+		if err != nil {
+			return err
+		}
 	}
 
 	// Index the document
-	body, err := json.Marshal(doc)
+	body, err := json.Marshal(record)
 	if err != nil {
 		return fmt.Errorf("failed to marshal document: %w", err)
 	}
@@ -156,37 +126,43 @@ func (s *SearchIndex) IndexRecord(baseIndexName string, recordId string, record 
 	return nil
 }
 
-func prepareDocument(record interface{}) (map[string]interface{}, error) {
-	data, err := json.Marshal(record)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal record: %w", err)
-	}
-
-	var doc map[string]interface{}
-	if err := json.Unmarshal(data, &doc); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal record: %w", err)
-	}
-
-	return doc, nil
+// getIndexName constructs the time-based index pattern
+func (s *SearchIndex) getIndexName(baseIndexName string, date time.Time) string {
+	return fmt.Sprintf("%s-%s", baseIndexName, date.Format("2006.01.02"))
 }
 
-func getTimeField(record interface{}) (time.Time, bool) {
-	v := reflect.ValueOf(record)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	if v.Kind() != reflect.Struct {
-		return time.Time{}, false
+// createIndex creates a new index with basic settings, allowing OpenSearch to infer mappings
+func (s *SearchIndex) createIndex(indexName string) error {
+	settings := strings.NewReader(`{
+	 "settings": {
+	   "index": {
+	        "number_of_shards": 3,
+			"number_of_replicas": 0,
+			"refresh_interval": "1s"
+	        }
+	      }
+	 }`)
+	req := opensearchapi.IndicesCreateRequest{
+		Index: indexName,
+		Body:  settings,
 	}
 
-	t := v.Type()
-	for i := 0; i < v.NumField(); i++ {
-		if t.Field(i).Type == reflect.TypeOf(time.Time{}) {
-			return v.Field(i).Interface().(time.Time), true
+	res, err := req.Do(s.ctx, s.client)
+	if err != nil {
+		return fmt.Errorf("failed to create index: %w", err)
+	}
+	defer func() {
+		if err = res.Body.Close(); err != nil {
+			s.logger.Error("failed to close response body", zap.Error(err))
 		}
+	}()
+
+	if res.IsError() {
+		return fmt.Errorf("error creating index: %s", res.String())
 	}
 
-	return time.Time{}, false
+	s.logger.Info("Index created successfully", zap.String("index", indexName))
+	return nil
 }
 
 // Search searches across all indices with a given prefix
@@ -221,7 +197,7 @@ func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interf
 
 	if res.IsError() {
 		var e map[string]interface{}
-		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
+		if err = json.NewDecoder(res.Body).Decode(&e); err != nil {
 			return nil, fmt.Errorf("error parsing the response body: %w", err)
 		}
 		// Check if the error is due to missing field in sorting
