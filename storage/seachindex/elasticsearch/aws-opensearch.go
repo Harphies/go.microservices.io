@@ -27,6 +27,8 @@ Improvements
 8. Consider distributed Locking for the locking mechanism when running multiple replicas of th service using this package
 9. Pagination: Add support for result pagination using 'from' and 'size' parameters
 10. Advanced Querying: Implement more complex query types (e.g., range queries, fuzzy matching).
+11. Consider other efficient index patterns for faster ingestion and efficient query/retrieval performance
+12. Search across indexes based on index prefix
 */
 
 type SearchIndex struct {
@@ -282,18 +284,21 @@ func getTimeField(record interface{}) (time.Time, bool) {
 	return time.Time{}, false
 }
 
-func (s *SearchIndex) SearchDateRange(baseIndexName string, startDate, endDate time.Time, queryParams map[string]string) ([]map[string]interface{}, error) {
-	var indexNames []string
-	for d := startDate; !d.After(endDate); d = d.AddDate(0, 0, 1) {
-		indexNames = append(indexNames, s.getIndexName(baseIndexName, d))
-	}
+// Search searches across all indices with a given prefix
+func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interface{}) ([]map[string]interface{}, error) {
+	// Construct the index pattern to match all indices with the given prefix
+	indexPattern := fmt.Sprintf("%s-*", baseIndexName)
 
+	// Build the search query
 	query := buildSearchQuery(queryParams)
 
+	// Perform the search request
 	res, err := s.client.Search(
 		s.client.Search.WithContext(s.ctx),
-		s.client.Search.WithIndex(indexNames...),
+		s.client.Search.WithIndex(indexPattern),
 		s.client.Search.WithBody(strings.NewReader(query)),
+		s.client.Search.WithSize(1000),             // Adjust this value based on your needs
+		s.client.Search.WithSort("createdAt:desc"), // Assuming there's a createdAt field, adjust if needed
 	)
 	if err != nil {
 		return nil, fmt.Errorf("search request failed: %w", err)
@@ -308,7 +313,7 @@ func (s *SearchIndex) SearchDateRange(baseIndexName string, startDate, endDate t
 	}
 
 	var result map[string]interface{}
-	if err = json.NewDecoder(res.Body).Decode(&result); err != nil {
+	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to parse search response: %w", err)
 	}
 
@@ -316,7 +321,10 @@ func (s *SearchIndex) SearchDateRange(baseIndexName string, startDate, endDate t
 	results := make([]map[string]interface{}, len(hits))
 
 	for i, hit := range hits {
-		results[i] = hit.(map[string]interface{})["_source"].(map[string]interface{})
+		source := hit.(map[string]interface{})["_source"].(map[string]interface{})
+		index := hit.(map[string]interface{})["_index"].(string)
+		source["_index"] = index // Include the index name in the result
+		results[i] = source
 	}
 
 	return results, nil
@@ -334,22 +342,28 @@ func (s *SearchIndex) checkIndex(indexName string) (bool, error) {
 	return !res.IsError(), nil
 }
 
-func buildSearchQuery(queryParams map[string]string) string {
-	var conditions []string
+// buildSearchQuery constructs the OpenSearch query from the provided parameters
+func buildSearchQuery(queryParams map[string]interface{}) string {
+	must := []map[string]interface{}{}
+
 	for key, value := range queryParams {
-		conditions = append(conditions, fmt.Sprintf(`{"match": {"%s": "%s"}}`, key, value))
+		must = append(must, map[string]interface{}{
+			"match": map[string]interface{}{
+				key: value,
+			},
+		})
 	}
-	query := fmt.Sprintf(`
-	{
-		"query": {
-			"bool": {
-				"must": [
-					%s
-				]
-			}
-		}
-	}`, strings.Join(conditions, ","))
-	return query
+
+	query := map[string]interface{}{
+		"query": map[string]interface{}{
+			"bool": map[string]interface{}{
+				"must": must,
+			},
+		},
+	}
+
+	queryJSON, _ := json.Marshal(query)
+	return string(queryJSON)
 }
 
 // BulkIndex performs bulk indexing of documents
