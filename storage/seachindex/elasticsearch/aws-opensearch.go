@@ -85,7 +85,7 @@ func (s *SearchIndex) IndexRecord(baseIndexName string, recordId string, item in
 
 	if !exists {
 		s.logger.Info("Index does not exist. Creating it...", zap.String("index", indexName))
-		if err := s.createIndex(indexName); err != nil {
+		if err = s.createIndex(indexName); err != nil {
 			return fmt.Errorf("failed to create index: %w", err)
 		}
 	}
@@ -151,7 +151,7 @@ func (s *SearchIndex) SearchDateRange(baseIndexName string, startDate, endDate t
 	}
 
 	var result map[string]interface{}
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+	if err = json.NewDecoder(res.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to parse search response: %w", err)
 	}
 
