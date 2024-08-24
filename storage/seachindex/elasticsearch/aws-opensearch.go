@@ -81,23 +81,39 @@ func NewSearchIndex(logger *zap.Logger, endpoint string) (*SearchIndex, error) {
 	}, nil
 }
 
+func (s *SearchIndex) createIndex(indexName string) {
+	mapping := strings.NewReader(`{
+	 "settings": {
+	   "index": {
+	        "number_of_shards": 3,
+			"number_of_replicas": 0
+	        }
+	      }
+	 }`)
+	createIndex := opensearchapi.IndicesCreateRequest{
+		Index: indexName,
+		Body:  mapping,
+	}
+	createIndexResponse, err := createIndex.Do(s.ctx, s.client)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to create Index: %v", err.Error()))
+	}
+	s.logger.Info(fmt.Sprintf("Index created successfully: %v", createIndexResponse))
+}
+
 func (s *SearchIndex) getIndexName(baseIndexName string, date time.Time) string {
 	return fmt.Sprintf("%s-%s", baseIndexName, date.Format("2006.01.02"))
 }
 
 func (s *SearchIndex) IndexRecord(baseIndexName string, recordId string, record interface{}) error {
-	// Ensure the index template exists
-	if err := s.ensureIndexTemplate(baseIndexName, record); err != nil {
-		return fmt.Errorf("failed to ensure index template: %w", err)
-	}
-
 	// Determine the timestamp for indexing
 	timestamp := time.Now()
-	if t, ok := getTimeField(record); ok {
-		timestamp = t
-	}
-
 	indexName := s.getIndexName(baseIndexName, timestamp)
+	// Check if the Index exists before indexing the record
+	if ok, _ := s.checkIndex(indexName); !ok {
+		s.logger.Info(fmt.Sprintf("Index with name %s does not exist in the OpenSearch Cluster. Creating it......", indexName))
+		s.createIndex(indexName)
+	}
 
 	// Prepare the document to be indexed
 	doc, err := prepareDocument(record)
@@ -138,117 +154,6 @@ func (s *SearchIndex) IndexRecord(baseIndexName string, recordId string, record 
 
 	s.logger.Info("Record indexed and index refreshed", zap.String("recordId", recordId), zap.String("index", indexName))
 	return nil
-}
-
-func (s *SearchIndex) ensureIndexTemplate(baseIndexName string, record interface{}) error {
-	s.templatesMutex.Lock()
-	defer s.templatesMutex.Unlock()
-
-	if s.createdTemplates[baseIndexName] {
-		return nil // Template already created
-	}
-
-	if err := s.createIndexTemplate(baseIndexName, record); err != nil {
-		return err
-	}
-
-	s.createdTemplates[baseIndexName] = true
-	return nil
-}
-
-func (s *SearchIndex) createIndexTemplate(baseIndexName string, record interface{}) error {
-	mappings, err := generateMappings(record)
-	if err != nil {
-		return fmt.Errorf("failed to generate mappings: %w", err)
-	}
-
-	template := fmt.Sprintf(`{
-		"index_patterns": ["%s-*"],
-		"template": {
-			"settings": {
-				"number_of_shards": 3,
-				"number_of_replicas": 0,
-				"refresh_interval": "1s"
-			},
-			"mappings": {
-				"properties": %s
-			}
-		}
-	}`, baseIndexName, mappings)
-
-	req := opensearchapi.IndicesPutIndexTemplateRequest{
-		Name: baseIndexName + "-template",
-		Body: strings.NewReader(template),
-	}
-
-	res, err := req.Do(s.ctx, s.client)
-	if err != nil {
-		return fmt.Errorf("failed to create index template: %w", err)
-	}
-	defer func() {
-		err = res.Body.Close()
-	}()
-
-	if res.IsError() {
-		return fmt.Errorf("create index template request failed: %s", res.String())
-	}
-
-	s.logger.Info("Index template created successfully", zap.String("template", baseIndexName+"-template"))
-	return nil
-}
-
-func generateMappings(record interface{}) (string, error) {
-	v := reflect.ValueOf(record)
-	if v.Kind() == reflect.Ptr {
-		v = v.Elem()
-	}
-	if v.Kind() != reflect.Struct {
-		return "", fmt.Errorf("record must be a struct")
-	}
-
-	mappings := make(map[string]interface{})
-	t := v.Type()
-
-	for i := 0; i < v.NumField(); i++ {
-		field := t.Field(i)
-		fieldName := field.Tag.Get("json")
-		if fieldName == "" {
-			fieldName = strings.ToLower(field.Name)
-		}
-
-		fieldType := getOpenSearchType(field.Type)
-		mappings[fieldName] = map[string]string{"type": fieldType}
-	}
-
-	jsonMappings, err := json.Marshal(mappings)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal mappings: %w", err)
-	}
-
-	return string(jsonMappings), nil
-}
-
-func getOpenSearchType(t reflect.Type) string {
-	switch t.Kind() {
-	case reflect.Bool:
-		return "boolean"
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return "long"
-	case reflect.Float32, reflect.Float64:
-		return "double"
-	case reflect.String:
-		return "keyword"
-	case reflect.Struct:
-		if t == reflect.TypeOf(time.Time{}) {
-			return "date"
-		}
-	case reflect.Slice:
-		if t.Elem().Kind() == reflect.String {
-			return "keyword"
-		}
-	}
-	return "text"
 }
 
 func prepareDocument(record interface{}) (map[string]interface{}, error) {
@@ -328,7 +233,7 @@ func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interf
 	}
 
 	var result map[string]interface{}
-	if err := json.NewDecoder(res.Body).Decode(&result); err != nil {
+	if err = json.NewDecoder(res.Body).Decode(&result); err != nil {
 		return nil, fmt.Errorf("failed to parse search response: %w", err)
 	}
 
@@ -382,127 +287,127 @@ func buildSearchQuery(queryParams map[string]interface{}) string {
 }
 
 // BulkIndex performs bulk indexing of documents
-func (s *SearchIndex) BulkIndex(baseIndexName string, records []interface{}) error {
-	if len(records) == 0 {
-		return nil
-	}
-
-	// Ensure the index template exists based on the first record
-	if err := s.ensureIndexTemplate(baseIndexName, records[0]); err != nil {
-		return fmt.Errorf("failed to ensure index template: %w", err)
-	}
-
-	var (
-		wg        sync.WaitGroup
-		batchSize = 1000
-		batches   = (len(records) + batchSize - 1) / batchSize
-		errChan   = make(chan error, batches)
-	)
-
-	for i := 0; i < batches; i++ {
-		wg.Add(1)
-		go func(start int) {
-			defer wg.Done()
-			end := start + batchSize
-			if end > len(records) {
-				end = len(records)
-			}
-
-			bulk := &strings.Builder{}
-			for j := start; j < end; j++ {
-				record := records[j]
-
-				// Determine the timestamp for indexing
-				timestamp := time.Now()
-				if t, ok := getTimeField(record); ok {
-					timestamp = t
-				}
-				indexName := s.getIndexName(baseIndexName, timestamp)
-
-				// Prepare the document
-				doc, err := prepareDocument(record)
-				if err != nil {
-					errChan <- fmt.Errorf("failed to prepare document at index %d: %w", j, err)
-					return
-				}
-
-				// Create the action line (index instruction)
-				action := map[string]interface{}{
-					"index": map[string]interface{}{
-						"_index": indexName,
-						"_id":    fmt.Sprintf("%s-%d", baseIndexName, j), // You might want to use a more meaningful ID
-					},
-				}
-				actionLine, err := json.Marshal(action)
-				if err != nil {
-					errChan <- fmt.Errorf("failed to marshal action at index %d: %w", j, err)
-					return
-				}
-
-				// Create the document line
-				docLine, err := json.Marshal(doc)
-				if err != nil {
-					errChan <- fmt.Errorf("failed to marshal document at index %d: %w", j, err)
-					return
-				}
-
-				// Append action and document lines to the bulk request
-				bulk.Write(actionLine)
-				bulk.WriteString("\n")
-				bulk.Write(docLine)
-				bulk.WriteString("\n")
-			}
-
-			// Perform the bulk index request
-			res, err := s.client.Bulk(strings.NewReader(bulk.String()))
-			if err != nil {
-				errChan <- fmt.Errorf("bulk indexing failed for batch starting at %d: %w", start, err)
-				return
-			}
-			defer res.Body.Close()
-
-			if res.IsError() {
-				errChan <- fmt.Errorf("bulk indexing request failed for batch starting at %d: %s", start, res.String())
-				return
-			}
-
-			// Parse the response to check for individual document errors
-			var bulkResponse map[string]interface{}
-			if err := json.NewDecoder(res.Body).Decode(&bulkResponse); err != nil {
-				errChan <- fmt.Errorf("failed to parse bulk response for batch starting at %d: %w", start, err)
-				return
-			}
-
-			if bulkResponse["errors"].(bool) {
-				for _, item := range bulkResponse["items"].([]interface{}) {
-					index := item.(map[string]interface{})["index"].(map[string]interface{})
-					if index["error"] != nil {
-						errChan <- fmt.Errorf("error indexing document %s: %v", index["_id"], index["error"])
-					}
-				}
-			}
-		}(i * batchSize)
-	}
-
-	wg.Wait()
-	close(errChan)
-
-	// Collect all errors
-	var errors []string
-	for err := range errChan {
-		errors = append(errors, err.Error())
-	}
-
-	if len(errors) > 0 {
-		return fmt.Errorf("bulk indexing encountered errors: %s", strings.Join(errors, "; "))
-	}
-
-	// Refresh the index to make the documents searchable
-	_, err := s.client.Indices.Refresh(s.client.Indices.Refresh.WithIndex(fmt.Sprintf("%s-*", baseIndexName)))
-	if err != nil {
-		return fmt.Errorf("failed to refresh index: %w", err)
-	}
-
-	s.logger.Info("Bulk indexing completed and index refreshed", zap.String("baseIndexName", baseIndexName), zap.Int("recordCount", len(records)))
-	return nil
-}
+//func (s *SearchIndex) BulkIndex(baseIndexName string, records []interface{}) error {
+//	if len(records) == 0 {
+//		return nil
+//	}
+//
+//	// Ensure the index template exists based on the first record
+//	if err := s.ensureIndexTemplate(baseIndexName, records[0]); err != nil {
+//		return fmt.Errorf("failed to ensure index template: %w", err)
+//	}
+//
+//	var (
+//		wg        sync.WaitGroup
+//		batchSize = 1000
+//		batches   = (len(records) + batchSize - 1) / batchSize
+//		errChan   = make(chan error, batches)
+//	)
+//
+//	for i := 0; i < batches; i++ {
+//		wg.Add(1)
+//		go func(start int) {
+//			defer wg.Done()
+//			end := start + batchSize
+//			if end > len(records) {
+//				end = len(records)
+//			}
+//
+//			bulk := &strings.Builder{}
+//			for j := start; j < end; j++ {
+//				record := records[j]
+//
+//				// Determine the timestamp for indexing
+//				timestamp := time.Now()
+//				if t, ok := getTimeField(record); ok {
+//					timestamp = t
+//				}
+//				indexName := s.getIndexName(baseIndexName, timestamp)
+//
+//				// Prepare the document
+//				doc, err := prepareDocument(record)
+//				if err != nil {
+//					errChan <- fmt.Errorf("failed to prepare document at index %d: %w", j, err)
+//					return
+//				}
+//
+//				// Create the action line (index instruction)
+//				action := map[string]interface{}{
+//					"index": map[string]interface{}{
+//						"_index": indexName,
+//						"_id":    fmt.Sprintf("%s-%d", baseIndexName, j), // You might want to use a more meaningful ID
+//					},
+//				}
+//				actionLine, err := json.Marshal(action)
+//				if err != nil {
+//					errChan <- fmt.Errorf("failed to marshal action at index %d: %w", j, err)
+//					return
+//				}
+//
+//				// Create the document line
+//				docLine, err := json.Marshal(doc)
+//				if err != nil {
+//					errChan <- fmt.Errorf("failed to marshal document at index %d: %w", j, err)
+//					return
+//				}
+//
+//				// Append action and document lines to the bulk request
+//				bulk.Write(actionLine)
+//				bulk.WriteString("\n")
+//				bulk.Write(docLine)
+//				bulk.WriteString("\n")
+//			}
+//
+//			// Perform the bulk index request
+//			res, err := s.client.Bulk(strings.NewReader(bulk.String()))
+//			if err != nil {
+//				errChan <- fmt.Errorf("bulk indexing failed for batch starting at %d: %w", start, err)
+//				return
+//			}
+//			defer res.Body.Close()
+//
+//			if res.IsError() {
+//				errChan <- fmt.Errorf("bulk indexing request failed for batch starting at %d: %s", start, res.String())
+//				return
+//			}
+//
+//			// Parse the response to check for individual document errors
+//			var bulkResponse map[string]interface{}
+//			if err := json.NewDecoder(res.Body).Decode(&bulkResponse); err != nil {
+//				errChan <- fmt.Errorf("failed to parse bulk response for batch starting at %d: %w", start, err)
+//				return
+//			}
+//
+//			if bulkResponse["errors"].(bool) {
+//				for _, item := range bulkResponse["items"].([]interface{}) {
+//					index := item.(map[string]interface{})["index"].(map[string]interface{})
+//					if index["error"] != nil {
+//						errChan <- fmt.Errorf("error indexing document %s: %v", index["_id"], index["error"])
+//					}
+//				}
+//			}
+//		}(i * batchSize)
+//	}
+//
+//	wg.Wait()
+//	close(errChan)
+//
+//	// Collect all errors
+//	var errors []string
+//	for err := range errChan {
+//		errors = append(errors, err.Error())
+//	}
+//
+//	if len(errors) > 0 {
+//		return fmt.Errorf("bulk indexing encountered errors: %s", strings.Join(errors, "; "))
+//	}
+//
+//	// Refresh the index to make the documents searchable
+//	_, err := s.client.Indices.Refresh(s.client.Indices.Refresh.WithIndex(fmt.Sprintf("%s-*", baseIndexName)))
+//	if err != nil {
+//		return fmt.Errorf("failed to refresh index: %w", err)
+//	}
+//
+//	s.logger.Info("Bulk indexing completed and index refreshed", zap.String("baseIndexName", baseIndexName), zap.Int("recordCount", len(records)))
+//	return nil
+//}
