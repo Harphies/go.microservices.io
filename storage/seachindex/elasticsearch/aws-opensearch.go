@@ -285,21 +285,27 @@ func getTimeField(record interface{}) (time.Time, bool) {
 }
 
 // Search searches across all indices with a given prefix
-func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interface{}) ([]map[string]interface{}, error) {
+func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interface{}, sortField string) ([]map[string]interface{}, error) {
 	// Construct the index pattern to match all indices with the given prefix
 	indexPattern := fmt.Sprintf("%s-*", baseIndexName)
 
 	// Build the search query
 	query := buildSearchQuery(queryParams)
 
+	// Prepare search request
+	searchRequest := opensearchapi.SearchRequest{
+		Index: []string{indexPattern},
+		Body:  strings.NewReader(query),
+		Size:  opensearchapi.IntPtr(1000), // Adjust this value based on your needs
+	}
+
+	// Add sort if sortField is provided
+	if sortField != "" {
+		searchRequest.Sort = []string{fmt.Sprintf("%s:desc", sortField)}
+	}
+
 	// Perform the search request
-	res, err := s.client.Search(
-		s.client.Search.WithContext(s.ctx),
-		s.client.Search.WithIndex(indexPattern),
-		s.client.Search.WithBody(strings.NewReader(query)),
-		s.client.Search.WithSize(1000),             // Adjust this value based on your needs
-		s.client.Search.WithSort("createdAt:desc"), // Assuming there's a createdAt field, adjust if needed
-	)
+	res, err := searchRequest.Do(s.ctx, s.client)
 	if err != nil {
 		return nil, fmt.Errorf("search request failed: %w", err)
 	}
@@ -309,6 +315,15 @@ func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interf
 	}()
 
 	if res.IsError() {
+		var e map[string]interface{}
+		if err := json.NewDecoder(res.Body).Decode(&e); err != nil {
+			return nil, fmt.Errorf("error parsing the response body: %w", err)
+		}
+		// Check if the error is due to missing field in sorting
+		if reason, ok := e["error"].(map[string]interface{})["reason"].(string); ok && strings.Contains(reason, "No mapping found for") {
+			s.logger.Warn("Sorting field not found, retrying without sort", zap.String("sortField", sortField))
+			return s.Search(baseIndexName, queryParams, "") // Retry without sort
+		}
 		return nil, fmt.Errorf("search request failed: %s", res.String())
 	}
 
