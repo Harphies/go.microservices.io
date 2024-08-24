@@ -25,6 +25,8 @@ Improvements
 6. Add more templates and mappings for different services payload indices or Automatically generate template base on the structure of the incoming record to index
 7. Periodic Record Cleanup
 8. Consider distributed Locking for the locking mechanism when running multiple replicas of th service using this package
+9. Pagination: Add support for result pagination using 'from' and 'size' parameters
+10. Advanced Querying: Implement more complex query types (e.g., range queries, fuzzy matching).
 */
 
 type SearchIndex struct {
