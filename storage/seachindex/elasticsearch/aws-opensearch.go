@@ -83,12 +83,12 @@ func NewSearchIndex(logger *zap.Logger, endpoint string) (*SearchIndex, error) {
 	}, nil
 }
 
-func (s *SearchIndex) IndexRecord(baseIndexName, recordId string, item interface{}) error {
+func (s *SearchIndex) IndexRecord(baseIndexName, recordId string, item interface{}, indexProperties interface{}) error {
 	timestamp := time.Now()
 	indexName := s.getIndexName(baseIndexName, timestamp)
 	if ok, _ := s.checkIndex(indexName); !ok {
 		s.logger.Info(fmt.Sprintf("Index with name %s does not exist in the OpenSearch Cluster. Creating it......", indexName))
-		err := s.createIndex(indexName)
+		err := s.createIndex(indexName, indexProperties)
 		if err != nil {
 			return err
 		}
@@ -119,19 +119,21 @@ func (s *SearchIndex) getIndexName(baseIndexName string, date time.Time) string 
 	return fmt.Sprintf("%s-%s", baseIndexName, date.Format("2006.01.02"))
 }
 
-// createIndex creates a new index with basic settings, allowing OpenSearch to infer mappings
-func (s *SearchIndex) createIndex(indexName string) error {
-	mapping := strings.NewReader(`{
-	 "settings": {
-	   "index": {
-	        "number_of_shards": 3,
+// createIndex creates a new index with basic settings, including the types for index
+func (s *SearchIndex) createIndex(indexName string, indexProperties interface{}) error {
+	mapping := fmt.Sprintf(`{
+		"settings": {
+			"number_of_shards": 3,
 			"number_of_replicas": 0
-	        }
-	      }
-	 }`)
+		},
+		"mappings": {
+			"properties":%s
+		}
+	}`, indexProperties)
+
 	createIndex := opensearchapi.IndicesCreateRequest{
 		Index: indexName,
-		Body:  mapping,
+		Body:  strings.NewReader(mapping),
 	}
 	createIndexResponse, err := createIndex.Do(s.ctx, s.client)
 	if err != nil {
