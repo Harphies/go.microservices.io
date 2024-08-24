@@ -21,12 +21,15 @@ Improvements
 3. Caching of frequently assessed data
 4. Index optimization, fine-tune index settings and mappings
 5. time-based indices - Index partitioning and Lifecycle management
+6. Add more templates for different sort of indices
 */
 
 type SearchIndex struct {
-	client *opensearch.Client
-	logger *zap.Logger
-	ctx    context.Context
+	client           *opensearch.Client
+	logger           *zap.Logger
+	ctx              context.Context
+	templatesMutex   sync.Mutex
+	createdTemplates map[string]bool
 }
 
 func NewSearchIndex(logger *zap.Logger, endpoint string) (*SearchIndex, error) {
@@ -64,9 +67,10 @@ func NewSearchIndex(logger *zap.Logger, endpoint string) (*SearchIndex, error) {
 	logger.Info("Connection established with AWS OpenSearch Cluster", zap.String("version", version["number"].(string)))
 
 	return &SearchIndex{
-		client: client,
-		logger: logger,
-		ctx:    ctx,
+		client:           client,
+		logger:           logger,
+		ctx:              ctx,
+		createdTemplates: make(map[string]bool),
 	}, nil
 }
 
@@ -75,6 +79,11 @@ func (s *SearchIndex) getIndexName(baseIndexName string, date time.Time) string 
 }
 
 func (s *SearchIndex) IndexRecord(baseIndexName string, recordId string, item interface{}, date time.Time) error {
+	// Ensure the index template exists
+	if err := s.ensureIndexTemplate(baseIndexName); err != nil {
+		return fmt.Errorf("failed to ensure index template: %w", err)
+	}
+
 	indexName := s.getIndexName(baseIndexName, date)
 
 	// Check if the Index exists before indexing the record
@@ -84,10 +93,7 @@ func (s *SearchIndex) IndexRecord(baseIndexName string, recordId string, item in
 	}
 
 	if !exists {
-		s.logger.Info("Index does not exist. Creating it...", zap.String("index", indexName))
-		if err = s.createIndex(indexName); err != nil {
-			return fmt.Errorf("failed to create index: %w", err)
-		}
+		s.logger.Info("Index does not exist. It will be created automatically based on the template.", zap.String("index", indexName))
 	}
 
 	// Index records
@@ -122,6 +128,62 @@ func (s *SearchIndex) IndexRecord(baseIndexName string, recordId string, item in
 	}
 
 	s.logger.Info("Record indexed and index refreshed", zap.String("recordId", recordId), zap.String("index", indexName))
+	return nil
+}
+
+func (s *SearchIndex) ensureIndexTemplate(baseIndexName string) error {
+	s.templatesMutex.Lock()
+	defer s.templatesMutex.Unlock()
+
+	if s.createdTemplates[baseIndexName] {
+		return nil // Template already created
+	}
+
+	if err := s.createIndexTemplate(baseIndexName); err != nil {
+		return err
+	}
+
+	s.createdTemplates[baseIndexName] = true
+	return nil
+}
+
+func (s *SearchIndex) createIndexTemplate(baseIndexName string) error {
+	template := fmt.Sprintf(`{
+		"index_patterns": ["%s-*"],
+		"template": {
+			"settings": {
+				"number_of_shards": 3,
+				"number_of_replicas": 0,
+				"refresh_interval": "1s"
+			},
+			"mappings": {
+				"properties": {
+					"timestamp": {
+						"type": "date"
+					}
+				}
+			}
+		}
+	}`, baseIndexName)
+
+	req := opensearchapi.IndicesPutIndexTemplateRequest{
+		Name: baseIndexName + "-template",
+		Body: strings.NewReader(template),
+	}
+
+	res, err := req.Do(s.ctx, s.client)
+	if err != nil {
+		return fmt.Errorf("failed to create index template: %w", err)
+	}
+	defer func() {
+		err = res.Body.Close()
+	}()
+
+	if res.IsError() {
+		return fmt.Errorf("create index template request failed: %s", res.String())
+	}
+
+	s.logger.Info("Index template created successfully", zap.String("template", baseIndexName+"-template"))
 	return nil
 }
 
@@ -165,45 +227,6 @@ func (s *SearchIndex) SearchDateRange(baseIndexName string, startDate, endDate t
 	return results, nil
 }
 
-func (s *SearchIndex) createIndex(indexName string) error {
-	mapping := strings.NewReader(`{
-		"settings": {
-			"index": {
-				"number_of_shards": 3,
-				"number_of_replicas": 0
-			}
-		},
-		"mappings": {
-			"properties": {
-				"timestamp": {
-					"type": "date"
-				}
-			}
-		}
-	}`)
-
-	createIndex := opensearchapi.IndicesCreateRequest{
-		Index: indexName,
-		Body:  mapping,
-	}
-
-	res, err := createIndex.Do(s.ctx, s.client)
-	if err != nil {
-		return fmt.Errorf("failed to create index: %w", err)
-	}
-
-	defer func() {
-		err = res.Body.Close()
-	}()
-
-	if res.IsError() {
-		return fmt.Errorf("create index request failed: %s", res.String())
-	}
-
-	s.logger.Info("Index created successfully", zap.String("index", indexName))
-	return nil
-}
-
 func (s *SearchIndex) checkIndex(indexName string) (bool, error) {
 	res, err := s.client.Indices.Exists([]string{indexName})
 	if err != nil {
@@ -236,6 +259,11 @@ func buildSearchQuery(queryParams map[string]string) string {
 
 // BulkIndex performs bulk indexing of documents
 func (s *SearchIndex) BulkIndex(baseIndexName string, documents []map[string]interface{}) error {
+	// Ensure the index template exists
+	if err := s.ensureIndexTemplate(baseIndexName); err != nil {
+		return fmt.Errorf("failed to ensure index template: %w", err)
+	}
+
 	var (
 		wg        sync.WaitGroup
 		batchSize = 1000
@@ -284,48 +312,5 @@ func (s *SearchIndex) BulkIndex(baseIndexName string, documents []map[string]int
 	}
 
 	wg.Wait()
-	return nil
-}
-
-// CreateIndexTemplate creates an index template for time-based indices
-func (s *SearchIndex) CreateIndexTemplate(baseIndexName string) error {
-	template := fmt.Sprintf(`{
-		"index_patterns": ["%s-*"],
-		"template": {
-			"settings": {
-				"number_of_shards": 3,
-				"number_of_replicas": 0
-			},
-			"mappings": {
-				"properties": {
-					"timestamp": {
-						"type": "date"
-					}
-				}
-			}
-		}
-	}`, baseIndexName)
-
-	req := opensearchapi.IndicesPutIndexTemplateRequest{
-		Name: baseIndexName + "-template",
-		Body: strings.NewReader(template),
-	}
-
-	res, err := req.Do(s.ctx, s.client)
-	if err != nil {
-		return fmt.Errorf("failed to create index template: %w", err)
-	}
-	defer func() {
-		err = res.Body.Close()
-		if err != nil {
-			s.logger.Error("Failed to close response body", zap.Error(err))
-		}
-	}()
-
-	if res.IsError() {
-		return fmt.Errorf("create index template request failed: %s", res.String())
-	}
-
-	s.logger.Info("Index template created successfully", zap.String("template", baseIndexName+"-template"))
 	return nil
 }
