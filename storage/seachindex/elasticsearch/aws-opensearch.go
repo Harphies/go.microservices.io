@@ -31,6 +31,7 @@ Improvements
 10. Advanced Querying: Implement more complex query types (e.g., range queries, fuzzy matching).
 11. Consider other efficient index patterns for faster ingestion and efficient query/retrieval performance
 12. Search across indexes based on index prefix
+13. Dynamic Index Mapping vs statically typed mappings
 */
 
 type SearchIndex struct {
@@ -83,7 +84,7 @@ func NewSearchIndex(logger *zap.Logger, endpoint string) (*SearchIndex, error) {
 	}, nil
 }
 
-func (s *SearchIndex) IndexRecord(baseIndexName, recordId string, item interface{}, indexProperties interface{}) error {
+func (s *SearchIndex) IndexRecord(baseIndexName, recordId string, item interface{}, indexProperties string) error {
 	timestamp := time.Now()
 	indexName := s.getIndexName(baseIndexName, timestamp)
 	if ok, _ := s.checkIndex(indexName); !ok {
@@ -120,7 +121,7 @@ func (s *SearchIndex) getIndexName(baseIndexName string, date time.Time) string 
 }
 
 // createIndex creates a new index with basic settings, including the types for index
-func (s *SearchIndex) createIndex(indexName string, indexProperties interface{}) error {
+func (s *SearchIndex) createIndex(indexName string, indexProperties string) error {
 	mapping := fmt.Sprintf(`{
 		"settings": {
 			"number_of_shards": 3,
