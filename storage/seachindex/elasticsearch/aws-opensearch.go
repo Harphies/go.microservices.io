@@ -80,7 +80,7 @@ func NewSearchIndex(logger *zap.Logger, endpoint string) (*SearchIndex, error) {
 	}, nil
 }
 
-func (s *SearchIndex) IndexRecord(baseIndexName string, recordId string, record interface{}) error {
+func (s *SearchIndex) IndexRecord(baseIndexName, recordId string, item interface{}) error {
 	timestamp := time.Now()
 	indexName := s.getIndexName(baseIndexName, timestamp)
 	if ok, _ := s.checkIndex(indexName); !ok {
@@ -91,38 +91,23 @@ func (s *SearchIndex) IndexRecord(baseIndexName string, recordId string, record 
 		}
 	}
 
-	// Index the document
-	body, err := json.Marshal(record)
-	if err != nil {
-		return fmt.Errorf("failed to marshal document: %w", err)
-	}
-
+	// Index records
+	record, _ := json.Marshal(item)
 	req := opensearchapi.IndexRequest{
 		Index:      indexName,
 		DocumentID: recordId,
-		Body:       strings.NewReader(string(body)),
+		Body:       strings.NewReader(string(record)),
 	}
-
-	res, err := req.Do(s.ctx, s.client)
+	_, err := req.Do(s.ctx, s.client)
 	if err != nil {
-		return fmt.Errorf("failed to index document: %w", err)
+		s.logger.Error(fmt.Sprintf("error occurred: [%s]", err.Error()))
 	}
-
-	defer func() {
-		err = res.Body.Close()
-	}()
-
-	if res.IsError() {
-		return fmt.Errorf("index request failed: %s", res.String())
-	}
-
-	// Refresh the index to make the documents searchable
+	// refresh the index to make the documents searchable
 	_, err = s.client.Indices.Refresh(s.client.Indices.Refresh.WithIndex(indexName))
 	if err != nil {
-		return fmt.Errorf("failed to refresh index: %w", err)
+		s.logger.Error(fmt.Sprintf("error occurred: [%s]", err.Error()))
 	}
-
-	s.logger.Info("Record indexed and index refreshed", zap.String("recordId", recordId), zap.String("index", indexName))
+	s.logger.Info(fmt.Sprintf("Record with Id %s successfully Indexed and Index Refreshed", recordId))
 	return nil
 }
 
@@ -133,35 +118,24 @@ func (s *SearchIndex) getIndexName(baseIndexName string, date time.Time) string 
 
 // createIndex creates a new index with basic settings, allowing OpenSearch to infer mappings
 func (s *SearchIndex) createIndex(indexName string) error {
-	settings := strings.NewReader(`{
+	mapping := strings.NewReader(`{
 	 "settings": {
 	   "index": {
 	        "number_of_shards": 3,
-			"number_of_replicas": 0,
-			"refresh_interval": "1s"
+			"number_of_replicas": 0
 	        }
 	      }
 	 }`)
-	req := opensearchapi.IndicesCreateRequest{
+	createIndex := opensearchapi.IndicesCreateRequest{
 		Index: indexName,
-		Body:  settings,
+		Body:  mapping,
 	}
-
-	res, err := req.Do(s.ctx, s.client)
+	createIndexResponse, err := createIndex.Do(s.ctx, s.client)
 	if err != nil {
-		return fmt.Errorf("failed to create index: %w", err)
+		s.logger.Error(fmt.Sprintf("failed to create Index: %v", err.Error()))
+		return err
 	}
-	defer func() {
-		if err = res.Body.Close(); err != nil {
-			s.logger.Error("failed to close response body", zap.Error(err))
-		}
-	}()
-
-	if res.IsError() {
-		return fmt.Errorf("error creating index: %s", res.String())
-	}
-
-	s.logger.Info("Index created successfully", zap.String("index", indexName))
+	s.logger.Info(fmt.Sprintf("Index created successfully: %v", createIndexResponse))
 	return nil
 }
 
@@ -226,16 +200,18 @@ func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interf
 	return results, nil
 }
 
+// checkIndex - Check if an Index exists
 func (s *SearchIndex) checkIndex(indexName string) (bool, error) {
-	res, err := s.client.Indices.Exists([]string{indexName})
+	res, _ := s.client.Indices.Get([]string{indexName})
+	var r map[string]interface{}
+	err := json.NewDecoder(res.Body).Decode(&r)
 	if err != nil {
-		return false, fmt.Errorf("failed to check index existence: %w", err)
+		return false, fmt.Errorf("failed to parse response body: %w", err)
 	}
-	defer func() {
-		err = res.Body.Close()
-	}()
-
-	return !res.IsError(), nil
+	if r[indexName] != nil {
+		return true, nil
+	}
+	return true, nil
 }
 
 // buildSearchQuery constructs the OpenSearch query from the provided parameters
