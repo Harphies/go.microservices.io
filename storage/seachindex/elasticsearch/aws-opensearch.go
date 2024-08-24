@@ -15,6 +15,7 @@ import (
 )
 
 /*
+https://github.com/opensearch-project/opensearch-go/tree/main/guides
 Improvements
 1. OpenSearch Connection Pooling - reusing connection efficiently
 2. Batch processing of operations
