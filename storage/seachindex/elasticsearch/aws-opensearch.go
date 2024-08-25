@@ -15,9 +15,10 @@ import (
 )
 
 /*
-Useful Links
+Relevant Links
 https://github.com/opensearch-project/opensearch-go/tree/main/guides
 https://medium.com/jaegertracing/using-elasticsearch-rollover-to-manage-indices-8b3d0c77915d
+https://github.com/aws-samples/siem-on-amazon-opensearch-service
 Improvements
 1. OpenSearch Connection Pooling - reusing connection efficiently
 2. Batch processing of operations
