@@ -88,31 +88,51 @@ func NewSearchIndex(logger *zap.Logger, endpoint string) (*SearchIndex, error) {
 func (s *SearchIndex) IndexRecord(baseIndexName, recordId string, item interface{}, indexProperties string) error {
 	timestamp := time.Now()
 	indexName := s.getIndexName(baseIndexName, timestamp)
-	if ok, _ := s.checkIndex(indexName); !ok {
-		s.logger.Info(fmt.Sprintf("Index with name %s does not exist in the OpenSearch Cluster. Creating it......", indexName))
-		err := s.createIndex(indexName, indexProperties)
+
+	// Check if the index for today already exists
+	exists, err := s.checkIndex(indexName)
+	if err != nil {
+		return fmt.Errorf("failed to check index existence: %w", err)
+	}
+
+	if !exists {
+		s.logger.Info(fmt.Sprintf("Index with name %s does not exist in the OpenSearch Cluster. Creating it...", indexName))
+		err = s.createIndex(indexName, indexProperties)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create index: %w", err)
 		}
 	}
 
-	// Index records
-	record, _ := json.Marshal(item)
+	// Index record
+	record, err := json.Marshal(item)
+	if err != nil {
+		return fmt.Errorf("failed to marshal record: %w", err)
+	}
+
 	req := opensearchapi.IndexRequest{
 		Index:      indexName,
 		DocumentID: recordId,
 		Body:       strings.NewReader(string(record)),
 	}
-	_, err := req.Do(s.ctx, s.client)
+	res, err := req.Do(s.ctx, s.client)
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("error occurred: [%s]", err.Error()))
+		return fmt.Errorf("failed to index record: %w", err)
 	}
-	// refresh the index to make the documents searchable
+	defer func() {
+		err = res.Body.Close()
+	}()
+
+	if res.IsError() {
+		return fmt.Errorf("error indexing document: %s", res.String())
+	}
+
+	// Refresh the index to make the documents searchable
 	_, err = s.client.Indices.Refresh(s.client.Indices.Refresh.WithIndex(indexName))
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("error occurred: [%s]", err.Error()))
+		return fmt.Errorf("failed to refresh index: %w", err)
 	}
-	s.logger.Info(fmt.Sprintf("Record with Id %s successfully Indexed and Index Refreshed", recordId))
+
+	s.logger.Info(fmt.Sprintf("Record with Id %s successfully indexed in %s and index refreshed", recordId, indexName))
 	return nil
 }
 
@@ -212,16 +232,15 @@ func (s *SearchIndex) Search(baseIndexName string, queryParams map[string]interf
 
 // checkIndex - Check if an Index exists
 func (s *SearchIndex) checkIndex(indexName string) (bool, error) {
-	res, _ := s.client.Indices.Get([]string{indexName})
-	var r map[string]interface{}
-	err := json.NewDecoder(res.Body).Decode(&r)
+	res, err := s.client.Indices.Exists([]string{indexName})
 	if err != nil {
-		return false, fmt.Errorf("failed to parse response body: %w", err)
+		return false, fmt.Errorf("failed to check index existence: %w", err)
 	}
-	if r[indexName] != nil {
-		return true, nil
-	}
-	return true, nil
+	defer func() {
+		err = res.Body.Close()
+	}()
+
+	return res.StatusCode == 200, nil
 }
 
 // buildSearchQuery constructs the OpenSearch query from the provided parameters
