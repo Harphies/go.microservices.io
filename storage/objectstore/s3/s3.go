@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+/*
+Improvements
+Use Multi-part upload API for uploads to improve uploads speed or large files: https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
+*/
+
 // AmazonS3Backend is a storage backend for Amazon S3
 type AmazonS3Backend struct {
 	Bucket     string
