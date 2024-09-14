@@ -58,7 +58,7 @@ func NewHTTPClient(timeout time.Duration) *http.Client {
 
 // HTTPRequest sends an HTTP request and returns the response body
 func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, token string, payload interface{}, queryParams, headers map[string]string) ([]byte, error) {
-	client := NewHTTPClient(10 * time.Second)
+	client := NewHTTPClient(180 * time.Second)
 
 	var body io.Reader
 	if payload != nil {
