@@ -105,7 +105,7 @@ func HTTPRequest(ctx context.Context, logger *zap.Logger, method, endpoint, toke
 	}
 
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
-		return nil, fmt.Errorf("unexpected status code: %d with erro:%v", res.StatusCode, err.Error())
+		return nil, fmt.Errorf("unexpected status code: %d with error:%v", res.StatusCode, err.Error())
 	}
 
 	return responseBody, nil

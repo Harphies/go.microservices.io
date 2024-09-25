@@ -1,4 +1,4 @@
-TAG := v0.2.1
+TAG := v0.2.2
 .PHONY: push/changes
 push/changes:
 	echo 'Push changes'
