@@ -8,19 +8,23 @@ import (
 )
 
 type Config struct {
-	LogLevel     string
-	LogToFile    bool
-	LogFilePath  string
-	LogToConsole bool
-	DevMode      bool
+	LogLevel        string
+	LogToFile       bool
+	LogFilePath     string
+	LogToConsole    bool
+	ConsoleLogLevel string
+	DevMode         bool
 }
 
-// NewLogger Write leveled structured logs to either standard err, console or file destination
-// In the format: LogTimeStamp Log level Message
 func NewLogger(config Config) (*zap.Logger, func(), error) {
 	level, err := zapcore.ParseLevel(config.LogLevel)
 	if err != nil {
 		return nil, nil, fmt.Errorf("invalid log level: %v", err)
+	}
+
+	consoleLevel, err := zapcore.ParseLevel(config.ConsoleLogLevel)
+	if err != nil {
+		return nil, nil, fmt.Errorf("invalid console log level: %v", err)
 	}
 
 	encoderConfig := zapcore.EncoderConfig{
@@ -59,7 +63,11 @@ func NewLogger(config Config) (*zap.Logger, func(), error) {
 		} else {
 			consoleEncoder = zapcore.NewJSONEncoder(encoderConfig)
 		}
-		cores = append(cores, zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), level))
+		// Use LevelEnabler to filter log entries
+		consoleLevelEnabler := zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+			return lvl >= consoleLevel
+		})
+		cores = append(cores, zapcore.NewCore(consoleEncoder, zapcore.AddSync(os.Stdout), consoleLevelEnabler))
 	}
 
 	// If no logging output is configured, log to stderr as a fallback
@@ -72,11 +80,8 @@ func NewLogger(config Config) (*zap.Logger, func(), error) {
 
 	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
 
-	// Create a cleanup function
 	cleanup := func() {
-		// Attempt to sync, but ignore errors
 		_ = logger.Sync()
-		// Close any open files
 		for _, fn := range closeFns {
 			fn()
 		}
