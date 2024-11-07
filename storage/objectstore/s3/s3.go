@@ -1,11 +1,10 @@
 package s3
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"io"
 	"net/url"
 	"path"
 	"strings"
@@ -15,95 +14,96 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"go.uber.org/zap"
 )
 
-// ErrInvalidObjectPath is returned when the object path is invalid
-var ErrInvalidObjectPath = errors.New("invalid object path")
+var (
+	ErrInvalidObjectPath = errors.New("invalid object path")
+	ErrObjectNotFound    = errors.New("object not found")
+	ErrInvalidS3URL      = errors.New("invalid S3 URL")
+)
 
-// ErrObjectNotFound is returned when the requested object does not exist
-var ErrObjectNotFound = errors.New("object not found")
-
-// ErrInvalidS3URL is returned when the provided S3 URL is invalid
-var ErrInvalidS3URL = errors.New("invalid S3 URL")
-
-// AmazonS3Backend is a storage backend for Amazon S3
 type AmazonS3Backend struct {
-	Bucket     string
-	Client     *s3.Client
-	Downloader *manager.Downloader
-	Prefix     string
-	Uploader   *manager.Uploader
+	bucket     string
+	client     *s3.Client
+	downloader *manager.Downloader
+	prefix     string
+	uploader   *manager.Uploader
 	logger     *zap.Logger
 }
 
-// Object represents a generic storage object
 type Object struct {
 	Meta         Metadata
 	Path         string
 	Content      []byte
+	ContentType  string
 	LastModified time.Time
-	logger       *zap.Logger
+	Size         int64
 }
 
-// Metadata represents the meta information of the object
 type Metadata struct {
 	Name    string
 	Version string
 }
 
-// ObjectSliceDiff provides information on what has changed since last calling ListObjects
-type ObjectSliceDiff struct {
-	Change  bool
-	Removed []Object
-	Added   []Object
-	Updated []Object
-}
-
-// Backend is a generic interface for storage backends
-type Backend interface {
-	ListObjects(prefix string) ([]Object, error)
-	GetObject(path string) (Object, error)
-	PutObject(path string, content []byte) error
-	DeleteObject(path string) error
-}
-
-// NewAmazonS3Backend creates a new instance of AmazonS3Backend
+// NewAmazonS3Backend creates a new optimized S3 backend instance
 func NewAmazonS3Backend(logger *zap.Logger, bucket, region, prefix string) (*AmazonS3Backend, error) {
-	cfg, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(region))
+	cfg, err := config.LoadDefaultConfig(context.Background(),
+		config.WithRegion(region),
+		config.WithRetryMode(aws.RetryModeStandard),
+		config.WithRetryMaxAttempts(3),
+	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load IAM Role for Service Account OIDC token credentials: %w", err)
+		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	client := s3.NewFromConfig(cfg)
+	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.UsePathStyle = true // Use path-style addressing
+	})
+
+	// Configure uploader for optimal performance
+	uploader := manager.NewUploader(client, func(u *manager.Uploader) {
+		u.PartSize = 5 * 1024 * 1024 // 5MB per part
+		u.Concurrency = 3            // Concurrent part uploads
+		u.LeavePartsOnError = false  // Cleanup on failures
+	})
+
+	// Configure downloader for optimal performance
+	downloader := manager.NewDownloader(client, func(d *manager.Downloader) {
+		d.PartSize = 5 * 1024 * 1024 // 5MB per part
+		d.Concurrency = 3            // Concurrent part downloads
+	})
+
 	return &AmazonS3Backend{
-		Bucket:     bucket,
-		Client:     client,
-		Prefix:     cleanPrefix(prefix),
+		bucket:     bucket,
+		client:     client,
+		prefix:     cleanPrefix(prefix),
 		logger:     logger,
-		Downloader: manager.NewDownloader(client),
-		Uploader:   manager.NewUploader(client),
+		downloader: downloader,
+		uploader:   uploader,
 	}, nil
 }
 
-// PutObject uploads an object to Amazon S3 bucket, at prefix
-func (b *AmazonS3Backend) PutObject(path, contentType string, content []byte) (string, error) {
+// PutObject uploads an object to S3 with optimized settings for both small and large files
+func (b *AmazonS3Backend) PutObject(ctx context.Context, path string, contentType string, reader io.Reader, size int64) (string, error) {
 	if objectPathIsInvalid(path) {
 		return "", ErrInvalidObjectPath
 	}
 
 	key := b.objectPath(path)
-	s3Input := &s3.PutObjectInput{
-		Bucket:      aws.String(b.Bucket),
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+	defer cancel()
+
+	input := &s3.PutObjectInput{
+		Bucket:      aws.String(b.bucket),
 		Key:         aws.String(key),
-		Body:        bytes.NewReader(content),
+		Body:        reader,
 		ContentType: aws.String(contentType),
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	_, err := b.Uploader.Upload(ctx, s3Input)
+	_, err := b.uploader.Upload(ctx, input)
 	if err != nil {
 		return "", fmt.Errorf("failed to upload object: %w", err)
 	}
@@ -111,69 +111,118 @@ func (b *AmazonS3Backend) PutObject(path, contentType string, content []byte) (s
 	return key, nil
 }
 
-// GetObject retrieves an object from the S3 bucket
-func (b *AmazonS3Backend) GetObject(pathOrURL string) (Object, error) {
-	var bucket, key string
-	var err error
-
-	// Check if the input is a full S3 URL
-	if strings.HasPrefix(strings.ToLower(pathOrURL), "https://") {
-		bucket, key, err = parseS3URL(pathOrURL)
-		if err != nil {
-			return Object{}, err
-		}
-	} else {
-		if objectPathIsInvalid(pathOrURL) {
-			return Object{}, ErrInvalidObjectPath
-		}
-		bucket = b.Bucket
-		key = b.objectPath(pathOrURL)
+// GetObject downloads an object from S3 with optimized settings
+func (b *AmazonS3Backend) GetObject(ctx context.Context, pathOrURL string) (*Object, error) {
+	bucket, key, err := b.resolveBucketAndKey(pathOrURL)
+	if err != nil {
+		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
-	obj := Object{
-		Path:   key,
-		logger: b.logger,
-	}
-
-	buf := manager.NewWriteAtBuffer([]byte{})
-	_, err = b.Downloader.Download(ctx, buf, &s3.GetObjectInput{
+	// Get object metadata first
+	headOutput, err := b.client.HeadObject(ctx, &s3.HeadObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
-
 	if err != nil {
 		var nsk *types.NoSuchKey
 		if errors.As(err, &nsk) {
-			return Object{}, ErrObjectNotFound
+			return nil, ErrObjectNotFound
 		}
-		return Object{}, fmt.Errorf("failed to download object: %w", err)
+		return nil, fmt.Errorf("failed to get object metadata: %w", err)
 	}
 
-	obj.Content = buf.Bytes()
+	// Allocate buffer based on object size
+	buf := manager.NewWriteAtBuffer(make([]byte, 0, *headOutput.ContentLength))
 
-	// Get object metadata
-	headOutput, err := b.Client.HeadObject(ctx, &s3.HeadObjectInput{
+	_, err = b.downloader.Download(ctx, buf, &s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    aws.String(key),
 	})
 	if err != nil {
-		return Object{}, fmt.Errorf("failed to get object metadata: %w", err)
+		return nil, fmt.Errorf("failed to download object: %w", err)
 	}
 
-	obj.LastModified = *headOutput.LastModified
-	obj.Meta = Metadata{
-		Name:    path.Base(key),
-		Version: aws.ToString(headOutput.VersionId),
+	return &Object{
+		Path:    key,
+		Content: buf.Bytes(),
+		Meta: Metadata{
+			Name:    path.Base(key),
+			Version: aws.ToString(headOutput.VersionId),
+		},
+		ContentType:  aws.ToString(headOutput.ContentType),
+		LastModified: *headOutput.LastModified,
+		Size:         *headOutput.ContentLength,
+	}, nil
+}
+
+// GetObjectStream returns a reader for streaming large objects
+func (b *AmazonS3Backend) GetObjectStream(ctx context.Context, pathOrURL string) (io.ReadCloser, *Object, error) {
+	bucket, key, err := b.resolveBucketAndKey(pathOrURL)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return obj, nil
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
+
+	output, err := b.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		cancel()
+		var nsk *types.NoSuchKey
+		if errors.As(err, &nsk) {
+			return nil, nil, ErrObjectNotFound
+		}
+		return nil, nil, fmt.Errorf("failed to get object: %w", err)
+	}
+
+	obj := &Object{
+		Path: key,
+		Meta: Metadata{
+			Name:    path.Base(key),
+			Version: aws.ToString(output.VersionId),
+		},
+		ContentType:  aws.ToString(output.ContentType),
+		LastModified: *output.LastModified,
+		Size:         *output.ContentLength,
+	}
+
+	// Return the reader and a cleanup function
+	return &readCloserWithCancel{
+		ReadCloser: output.Body,
+		cancel:     cancel,
+	}, obj, nil
+}
+
+type readCloserWithCancel struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (r *readCloserWithCancel) Close() error {
+	defer r.cancel()
+	return r.ReadCloser.Close()
+}
+
+// Helper functions
+func (b *AmazonS3Backend) resolveBucketAndKey(pathOrURL string) (bucket, key string, err error) {
+	if strings.HasPrefix(strings.ToLower(pathOrURL), "https://") {
+		return parseS3URL(pathOrURL)
+	}
+
+	if objectPathIsInvalid(pathOrURL) {
+		return "", "", ErrInvalidObjectPath
+	}
+
+	return b.bucket, b.objectPath(pathOrURL), nil
 }
 
 func (b *AmazonS3Backend) objectPath(path string) string {
-	return strings.TrimPrefix(fmt.Sprintf("%s/%s", b.Prefix, path), "/")
+	return strings.TrimPrefix(fmt.Sprintf("%s/%s", b.prefix, path), "/")
 }
 
 func cleanPrefix(prefix string) string {
@@ -184,14 +233,6 @@ func objectPathIsInvalid(path string) bool {
 	return path == "" || path == "/" || strings.HasPrefix(path, "/") || strings.HasSuffix(path, "/")
 }
 
-func removePrefixFromObjectPath(prefix, path string) string {
-	if prefix == "" {
-		return path
-	}
-	return strings.TrimPrefix(path, prefix+"/")
-}
-
-// parseS3URL parses a full S3 URL and returns the bucket and key
 func parseS3URL(s3URL string) (bucket, key string, err error) {
 	u, err := url.Parse(s3URL)
 	if err != nil {
@@ -207,8 +248,5 @@ func parseS3URL(s3URL string) (bucket, key string, err error) {
 		return "", "", ErrInvalidS3URL
 	}
 
-	bucket = parts[0]
-	key = strings.TrimPrefix(u.Path, "/")
-
-	return bucket, key, nil
+	return parts[0], strings.TrimPrefix(u.Path, "/"), nil
 }
