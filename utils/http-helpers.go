@@ -346,3 +346,42 @@ func addCORSHeaders(w http.ResponseWriter, origin string) {
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
 	w.Header().Set("Access-Control-Max-Age", "86400")
 }
+
+// HTTPMultipartRequest sends an HTTP multipart request and returns the response body
+func HTTPMultipartRequest(ctx context.Context, logger *zap.Logger, method, endpoint, token string, body io.Reader, headers map[string]string) ([]byte, error) {
+	client := NewHTTPClient(180 * time.Second)
+
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	for key, value := range headers {
+		req.Header.Set(key, value)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer func() {
+		if cerr := res.Body.Close(); cerr != nil {
+			logger.Error("Failed to close response body", zap.Error(cerr))
+		}
+	}()
+
+	responseBody, err := io.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return nil, fmt.Errorf("unexpected status code: %d, body: %s", res.StatusCode, string(responseBody))
+	}
+
+	return responseBody, nil
+}
