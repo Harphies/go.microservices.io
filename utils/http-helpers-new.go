@@ -3,19 +3,24 @@ package utils
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptrace"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // reuse your client for performance reasons
 func newHttpClient() *http.Client {
 	trp := &http.Transport{
+		Proxy:             http.ProxyFromEnvironment, // Get a proxy endpoint, if any, from the HTTP(S)_PROXY environment variables
+		ForceAttemptHTTP2: false,                     // in case HTTP/2 is supported
+		MaxConnsPerHost:   100,                       // 100 is the default
 		DialContext: (&net.Dialer{
 			Timeout:   2 * time.Minute,
 			KeepAlive: 3 * time.Minute,
@@ -25,6 +30,9 @@ func newHttpClient() *http.Client {
 		ExpectContinueTimeout: 1 * time.Minute,
 		MaxIdleConns:          10,
 		IdleConnTimeout:       90 * time.Second,
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
 	}
 	client := &http.Client{
 		Timeout:   10 * time.Minute,

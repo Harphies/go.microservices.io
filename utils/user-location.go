@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"go.uber.org/zap"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 type IPInfo struct {

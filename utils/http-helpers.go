@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"go.uber.org/zap"
 	"io"
 	"io/ioutil"
 	"net"
@@ -18,6 +17,8 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 /*
