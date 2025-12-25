@@ -1,4 +1,4 @@
-TAG := v0.2.9
+TAG := v0.2.10
 .PHONY: push/changes
 push/changes:
 	echo 'Push changes'
@@ -16,3 +16,5 @@ release/tag/github: push/changes
 release/module/go: release/tag/github
 	echo "Release New tag to go module registry"
 	GOPROXY=proxy.golang.org go list -m github.com/harphies/go.microservices.io@${TAG}
+
+#go get -u ./... && go mod tidy
