@@ -250,3 +250,26 @@ func parseS3URL(s3URL string) (bucket, key string, err error) {
 
 	return parts[0], strings.TrimPrefix(u.Path, "/"), nil
 }
+
+// Ping performs a lightweight health check on the S3 bucket.
+// It verifies:
+//   - AWS credentials are valid
+//   - Network connectivity to S3
+//   - Bucket exists and is accessible
+//   - Permissions are correctly configured
+//
+// This is suitable for health check endpoints that run frequently.
+// Uses HeadBucket API which only returns metadata (no data transfer).
+func (b *AmazonS3Backend) Ping(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	_, err := b.client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(b.bucket),
+	})
+	if err != nil {
+		return fmt.Errorf("s3 health check failed: %w", err)
+	}
+
+	return nil
+}
