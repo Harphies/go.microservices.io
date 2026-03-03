@@ -3,6 +3,7 @@ package logging
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"time"
 
@@ -175,4 +176,75 @@ func WithServiceIdentity(logger *zap.Logger, service, version, environment strin
 		zap.String("version", version),
 		zap.String("environment", environment),
 	)
+}
+
+// --- slog adapter for Echo v5 ---
+
+// NewSlogHandler returns an slog.Handler that routes all log output through
+// the given Zap logger. Use this to unify Echo's internal slog-based logging
+// with the application's Zap pipeline.
+func NewSlogHandler(logger *zap.Logger) slog.Handler {
+	return &zapSlogHandler{logger: logger}
+}
+
+type zapSlogHandler struct {
+	logger *zap.Logger
+	attrs  []zap.Field
+}
+
+func (h *zapSlogHandler) Enabled(_ context.Context, _ slog.Level) bool {
+	return true
+}
+
+func (h *zapSlogHandler) Handle(_ context.Context, record slog.Record) error {
+	fields := make([]zap.Field, 0, len(h.attrs)+record.NumAttrs())
+	fields = append(fields, h.attrs...)
+	record.Attrs(func(a slog.Attr) bool {
+		fields = append(fields, slogAttrToZapField(a))
+		return true
+	})
+
+	switch {
+	case record.Level >= slog.LevelError:
+		h.logger.Error(record.Message, fields...)
+	case record.Level >= slog.LevelWarn:
+		h.logger.Warn(record.Message, fields...)
+	case record.Level >= slog.LevelInfo:
+		h.logger.Info(record.Message, fields...)
+	default:
+		h.logger.Debug(record.Message, fields...)
+	}
+	return nil
+}
+
+func (h *zapSlogHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	fields := make([]zap.Field, 0, len(h.attrs)+len(attrs))
+	fields = append(fields, h.attrs...)
+	for _, a := range attrs {
+		fields = append(fields, slogAttrToZapField(a))
+	}
+	return &zapSlogHandler{logger: h.logger, attrs: fields}
+}
+
+func (h *zapSlogHandler) WithGroup(name string) slog.Handler {
+	return &zapSlogHandler{logger: h.logger.Named(name), attrs: h.attrs}
+}
+
+func slogAttrToZapField(a slog.Attr) zap.Field {
+	switch a.Value.Kind() {
+	case slog.KindString:
+		return zap.String(a.Key, a.Value.String())
+	case slog.KindInt64:
+		return zap.Int64(a.Key, a.Value.Int64())
+	case slog.KindFloat64:
+		return zap.Float64(a.Key, a.Value.Float64())
+	case slog.KindBool:
+		return zap.Bool(a.Key, a.Value.Bool())
+	case slog.KindDuration:
+		return zap.Duration(a.Key, a.Value.Duration())
+	case slog.KindTime:
+		return zap.Time(a.Key, a.Value.Time())
+	default:
+		return zap.Any(a.Key, a.Value.Any())
+	}
 }
