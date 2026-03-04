@@ -247,8 +247,6 @@ func ValidateAWSCognitoAccessToken(tokenString, jwksURL string) (*jwt.Token, *ti
 	}
 
 	expTime := time.Unix(int64(expFloat), 0).UTC()
-	expTimeUTC1 := expTime.In(time.FixedZone("UTC+1", 1*60*60))
-	fmt.Printf("Token Expiration in UTC+1: %v\n", expTimeUTC1)
 
 	return token, &expTime, nil
 }
